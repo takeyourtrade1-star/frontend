@@ -1,9 +1,11 @@
 // User Types
+// NOTE: Python FastAPI backend returns snake_case fields (e.g., account_type, email_verified_at, phone_prefix)
+// All field names match the backend response format
 export interface User {
   id: number
   username: string
   email: string
-  account_type: 'personal' | 'business'
+  account_type: 'personal' | 'business' | 'private' // Backend uses 'private' for business accounts
   role?: string
   verified: boolean
   email_verified_at?: string | null
@@ -21,6 +23,9 @@ export interface User {
   country?: string
   phone_prefix?: string
   telefono?: string
+  // MFA fields (from backend)
+  mfa_enabled?: boolean
+  account_status?: string
 }
 
 // Auth Types
@@ -54,6 +59,23 @@ export interface AuthResponse {
   token_type: string
   user: User
   expires_in?: number
+}
+
+// MFA Response Types
+export interface MFALoginResponse {
+  pre_auth_token: string
+  mfa_required: true
+}
+
+export interface DirectLoginResponse {
+  access_token: string
+  refresh_token: string
+  token_type: string
+}
+
+export interface VerifyMFAData {
+  pre_auth_token: string
+  mfa_code: string
 }
 
 export interface VerifyEmailData {

@@ -18,8 +18,8 @@ const normalizeURL = (url: string): string => {
 }
 
 /**
- * URL del microservizio di autenticazione (AWS)
- * Usa SOLO il nuovo servizio AWS, senza fallback al vecchio servizio
+ * URL del microservizio di autenticazione (Python FastAPI su EC2)
+ * Usa SOLO il nuovo servizio FastAPI, senza fallback al vecchio servizio
  */
 const getAuthApiURL = (): string => {
   const envUrl = import.meta.env.VITE_AWS_AUTH_URL

@@ -15,6 +15,7 @@ import HealthPage from '@/pages/HealthPage'
 import LoginPage from '@/pages/Auth/LoginPage'
 import RegisterPage from '@/pages/Auth/RegisterPage'
 import VerifyEmailPage from '@/pages/Auth/VerifyEmailPage'
+import VerifyMFAPage from '@/pages/Auth/VerifyMFAPage'
 import ForgotPasswordPage from '@/pages/Auth/ForgotPasswordPage'
 import ResetPasswordPage from '@/pages/Auth/ResetPasswordPage'
 import SuccessPage from '@/pages/SuccessPage'
@@ -67,6 +68,7 @@ export default function Router() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/verify-email" element={<VerifyEmailPage />} />
+          <Route path="/verify-mfa" element={<VerifyMFAPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route path="/success" element={<SuccessPage />} />

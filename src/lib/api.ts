@@ -90,7 +90,7 @@ class ApiClient {
             // Tenta di rinfrescare il token usando il microservizio Auth
             // Nota: Anche se questo client è per le API legacy, il refresh deve usare il microservizio Auth
             const refreshResponse = await axios.post(
-              `${API_URLS.auth}/auth/refresh`,
+              `${API_URLS.auth}/api/auth/refresh`,
               { refresh_token: refreshToken },
               {
                 headers: {

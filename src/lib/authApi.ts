@@ -64,9 +64,9 @@ class AuthApiClient {
         // E NON è una richiesta di login/register/refresh (che non dovrebbero avere token)
         if (error.response?.status === 401 && 
             !originalRequest._retry &&
-            !originalRequest.url?.includes('/auth/login') &&
-            !originalRequest.url?.includes('/auth/register') &&
-            !originalRequest.url?.includes('/auth/refresh')) {
+            !originalRequest.url?.includes('/api/auth/login') &&
+            !originalRequest.url?.includes('/api/auth/register') &&
+            !originalRequest.url?.includes('/api/auth/refresh')) {
           
           originalRequest._retry = true // Marca per evitare loop infiniti
           
@@ -99,7 +99,7 @@ class AuthApiClient {
           try {
             // Tenta di rinfrescare il token usando il microservizio Auth
             const refreshResponse = await axios.post(
-              `${API_URLS.auth}/auth/refresh`,
+              `${API_URLS.auth}/api/auth/refresh`,
               { refresh_token: refreshToken },
               {
                 headers: {

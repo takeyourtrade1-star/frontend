@@ -35,8 +35,23 @@ export default function LoginPage() {
     clearError()
     
     try {
-      await login({ email, password })
-      // Reindirizza alla pagina salvata o rimani sulla pagina corrente
+      const result = await login({ email, password })
+      
+      // Check if MFA is required
+      if (result?.mfaRequired && result?.preAuthToken) {
+        // Redirect to MFA verification page
+        navigate('/verify-mfa', { 
+          state: { 
+            preAuthToken: result.preAuthToken,
+            email: email,
+            from: (location.state as any)?.from || '/dashboard'
+          },
+          replace: true 
+        })
+        return
+      }
+      
+      // Direct login successful - redirect
       const from = (location.state as any)?.from || window.location.pathname
       // Se viene da /login o è la home, vai alla dashboard, altrimenti rimani dove sei
       if (from === '/login' || from === '/') {
@@ -66,9 +81,10 @@ export default function LoginPage() {
   const testAccount = async (testEmail: string, testPassword: string, description: string) => {
     const startTime = Date.now()
     try {
-      const response = await authApi.post('/auth/login', {
+      const response = await authApi.post('/api/auth/login', {
         email: testEmail,
-        password: testPassword
+        password: testPassword,
+        website_url: '' // Honeypot field
       })
       
       const duration = Date.now() - startTime
@@ -131,7 +147,7 @@ export default function LoginPage() {
   const testApiConnection = async () => {
     const startTime = Date.now()
     try {
-      const response = await authApi.get('/health')
+      const response = await authApi.get('/api/health')
       const duration = Date.now() - startTime
       
       const result = {

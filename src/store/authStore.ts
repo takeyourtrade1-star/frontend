@@ -15,7 +15,9 @@ import type {
   PasswordResetData,
   PasswordResetVerifyToken,
   EmailVerificationSend,
-  EmailVerificationVerify
+  EmailVerificationVerify,
+  VerifyMFAData,
+  MFALoginResponse
 } from '@/types'
 import { authApi } from '@/lib/authApi'
 import { config } from '@/lib/config'
@@ -27,9 +29,13 @@ interface AuthState {
   isAuthenticated: boolean
   isLoading: boolean
   error: string | null
+  // MFA State
+  preAuthToken: string | null
+  mfaRequired: boolean
 
   // Actions
-  login: (credentials: LoginCredentials) => Promise<void>
+  login: (credentials: LoginCredentials) => Promise<{ mfaRequired: boolean; preAuthToken?: string }>
+  verifyMFA: (data: VerifyMFAData) => Promise<void>
   register: (data: RegisterData) => Promise<void>
   verifyEmail: (data: VerifyEmailData) => Promise<void>
   resendVerification: (data: ResendVerificationData) => Promise<void>
@@ -54,6 +60,8 @@ export const useAuthStore = create<AuthState>()(
       isAuthenticated: false,
       isLoading: false,
       error: null,
+      preAuthToken: null,
+      mfaRequired: false,
 
       // Initialize auth from localStorage and validate with backend
       initializeAuth: async () => {
@@ -67,9 +75,9 @@ export const useAuthStore = create<AuthState>()(
             // Imposta il token per le richieste
             authApi.setToken(accessToken)
             
-            // Valida la sessione chiamando /auth/me
+            // Valida la sessione chiamando /api/auth/me
             // L'interceptor gestirà automaticamente il refresh se il token è scaduto
-            const response = await authApi.get('/auth/me') as any
+            const response = await authApi.get('/api/auth/me') as any
             
             // Se la chiamata è andata a buon fine, aggiorna i dati utente
             const user = response.data?.user || response.user || (userStr ? JSON.parse(userStr) : null)
@@ -109,34 +117,142 @@ export const useAuthStore = create<AuthState>()(
 
       // Login
       login: async (credentials: LoginCredentials) => {
-        set({ isLoading: true, error: null })
+        set({ isLoading: true, error: null, mfaRequired: false, preAuthToken: null })
         
         try {
-          const response = await authApi.post('/auth/login', credentials) as any
+          // Add honeypot field (required by backend)
+          const payload = {
+            ...credentials,
+            website_url: '' // Honeypot field - must be empty string
+          }
           
-          // Estrae i dati dalla risposta (supporta sia response.data.data che response.data)
+          const response = await authApi.post('/api/auth/login', payload) as any
+          
+          // Handle MFA response (Scenario 2)
+          if (response.mfa_required === true && response.pre_auth_token) {
+            set({
+              preAuthToken: response.pre_auth_token,
+              mfaRequired: true,
+              isLoading: false,
+              error: null,
+            })
+            return { mfaRequired: true, preAuthToken: response.pre_auth_token }
+          }
+          
+          // Handle direct login response (Scenario 1)
           const responseData = response.data || response
-          const accessToken = responseData.access_token || responseData.data?.access_token
-          const refreshToken = responseData.refresh_token || responseData.data?.refresh_token
-          const user = responseData.user || responseData.data?.user || response.user
+          const accessToken = responseData.access_token || response.access_token
+          const refreshToken = responseData.refresh_token || response.refresh_token
+          const user = responseData.user || response.user
           
-          if (response.success && accessToken && user) {
+          if (accessToken && refreshToken) {
             // Salva entrambi i token e user
             authApi.setToken(accessToken, refreshToken)
-            localStorage.setItem(config.auth.userKey, JSON.stringify(user))
+            
+            // If user is not in response, fetch it from /me endpoint
+            if (!user) {
+              try {
+                const meResponse = await authApi.get('/api/auth/me') as any
+                const userData = meResponse.data?.user || meResponse.user || meResponse.data
+                if (userData) {
+                  localStorage.setItem(config.auth.userKey, JSON.stringify(userData))
+                  set({
+                    user: userData,
+                    accessToken: accessToken,
+                    isAuthenticated: true,
+                    isLoading: false,
+                    error: null,
+                  })
+                  return { mfaRequired: false }
+                }
+              } catch (meError) {
+                // If /me fails, still set authenticated but without user
+              }
+            } else {
+              localStorage.setItem(config.auth.userKey, JSON.stringify(user))
+            }
             
             set({
-              user,
+              user: user || null,
               accessToken: accessToken,
               isAuthenticated: true,
               isLoading: false,
               error: null,
             })
+            return { mfaRequired: false }
           } else {
             throw new Error(response.message || responseData.message || 'Login fallito')
           }
         } catch (error: any) {
           const errorMessage = error.response?.data?.message || error.message || 'Errore durante il login'
+          
+          set({
+            isLoading: false,
+            error: errorMessage,
+            isAuthenticated: false,
+            mfaRequired: false,
+            preAuthToken: null,
+          })
+          
+          throw error
+        }
+      },
+
+      // Verify MFA
+      verifyMFA: async (data: VerifyMFAData) => {
+        set({ isLoading: true, error: null })
+        
+        try {
+          const response = await authApi.post('/api/auth/verify-mfa', data) as any
+          
+          const responseData = response.data || response
+          const accessToken = responseData.access_token || response.access_token
+          const refreshToken = responseData.refresh_token || response.refresh_token
+          const user = responseData.user || response.user
+          
+          if (accessToken && refreshToken) {
+            // Salva entrambi i token e user
+            authApi.setToken(accessToken, refreshToken)
+            
+            // If user is not in response, fetch it from /me endpoint
+            if (!user) {
+              try {
+                const meResponse = await authApi.get('/api/auth/me') as any
+                const userData = meResponse.data?.user || meResponse.user || meResponse.data
+                if (userData) {
+                  localStorage.setItem(config.auth.userKey, JSON.stringify(userData))
+                  set({
+                    user: userData,
+                    accessToken: accessToken,
+                    isAuthenticated: true,
+                    mfaRequired: false,
+                    preAuthToken: null,
+                    isLoading: false,
+                    error: null,
+                  })
+                  return
+                }
+              } catch (meError) {
+                // If /me fails, still set authenticated but without user
+              }
+            } else {
+              localStorage.setItem(config.auth.userKey, JSON.stringify(user))
+            }
+            
+            set({
+              user: user || null,
+              accessToken: accessToken,
+              isAuthenticated: true,
+              mfaRequired: false,
+              preAuthToken: null,
+              isLoading: false,
+              error: null,
+            })
+          } else {
+            throw new Error(response.message || responseData.message || 'Verifica MFA fallita')
+          }
+        } catch (error: any) {
+          const errorMessage = error.response?.data?.message || error.message || 'Errore durante la verifica MFA'
           
           set({
             isLoading: false,
@@ -153,7 +269,13 @@ export const useAuthStore = create<AuthState>()(
         set({ isLoading: true, error: null })
         
         try {
-          const response = await authApi.post('/auth/register', data) as any
+          // Add honeypot field (required by backend)
+          const payload = {
+            ...data,
+            website_url: '' // Honeypot field - must be empty string
+          }
+          
+          const response = await authApi.post('/api/auth/register', payload) as any
           
           // Estrae i dati dalla risposta (supporta sia response.data.data che response.data)
           const responseData = response.data || response
@@ -217,7 +339,7 @@ export const useAuthStore = create<AuthState>()(
         set({ isLoading: true, error: null })
         
         try {
-          const response = await authApi.post<{ user: User }>('/auth/verify-email', data)
+          const response = await authApi.post<{ user: User }>('/api/auth/verify-email', data)
           
           if (response.success && response.data) {
             set({
@@ -244,7 +366,7 @@ export const useAuthStore = create<AuthState>()(
         set({ isLoading: true, error: null })
         
         try {
-          const response = await authApi.post('/auth/verify-email/resend', data)
+          const response = await authApi.post('/api/auth/verify-email/resend', data)
           
           if (response.success) {
             set({
@@ -271,7 +393,7 @@ export const useAuthStore = create<AuthState>()(
         set({ isLoading: true, error: null })
         
         try {
-          const response = await authApi.post('/auth/password/request-reset', data)
+          const response = await authApi.post('/api/auth/password/request-reset', data)
           
           if (response.success) {
             set({
@@ -298,7 +420,7 @@ export const useAuthStore = create<AuthState>()(
         set({ isLoading: true, error: null })
         
         try {
-          const response = await authApi.post('/auth/password/verify-token', data) as any
+          const response = await authApi.post('/api/auth/password/verify-token', data) as any
           
           set({
             isLoading: false,
@@ -324,7 +446,7 @@ export const useAuthStore = create<AuthState>()(
         set({ isLoading: true, error: null })
         
         try {
-          const response = await authApi.post('/auth/password/reset', {
+          const response = await authApi.post('/api/auth/password/reset', {
             email: data.email,
             token: data.token,
             password: data.password,
@@ -394,7 +516,7 @@ export const useAuthStore = create<AuthState>()(
         
         try {
           // Se l'utente è autenticato, non serve passare email (viene presa dal token)
-          const response = await authApi.post('/auth/email/send-verification', data || {})
+          const response = await authApi.post('/api/auth/email/send-verification', data || {})
           
           if (response.success) {
             set({
@@ -421,7 +543,7 @@ export const useAuthStore = create<AuthState>()(
         set({ isLoading: true, error: null })
         
         try {
-          const response = await authApi.post('/auth/email/verify', data) as any
+          const response = await authApi.post('/api/auth/email/verify', data) as any
           
           if (response.success && response.user) {
             // Aggiorna i dati utente con la nuova verifica
@@ -461,7 +583,7 @@ export const useAuthStore = create<AuthState>()(
         // Chiama l'endpoint di logout per invalidare la sessione sul server
         if (accessToken) {
           try {
-            await authApi.post('/auth/logout', {})
+            await authApi.post('/api/auth/logout', {})
           } catch (error) {
             // Anche se il logout fallisce, procediamo con la pulizia client-side
           }
@@ -475,6 +597,8 @@ export const useAuthStore = create<AuthState>()(
           accessToken: null,
           isAuthenticated: false,
           error: null,
+          mfaRequired: false,
+          preAuthToken: null,
         })
       },
 

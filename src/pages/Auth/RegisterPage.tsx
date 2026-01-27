@@ -199,7 +199,7 @@ export default function RegisterPage() {
   const testApiConnection = async () => {
     const startTime = Date.now()
     try {
-      const response = await authApi.get('/health')
+      const response = await authApi.get('/api/health')
       const duration = Date.now() - startTime
       
       const result = {
@@ -231,8 +231,14 @@ export default function RegisterPage() {
     // Rimuovi il campo 'description' dai dati prima di inviarli (non fa parte della documentazione AWS)
     const { description: _, ...dataToSend } = testData
     
+    // Add honeypot field (required by backend)
+    const payload = {
+      ...dataToSend,
+      website_url: '' // Honeypot field - must be empty string
+    }
+    
     try {
-      const response = await authApi.post('/auth/register', dataToSend)
+      const response = await authApi.post('/api/auth/register', payload)
       
       const duration = Date.now() - startTime
       const result = {

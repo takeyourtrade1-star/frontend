@@ -85,7 +85,7 @@ class CollectionApiClient {
           try {
             // Tenta di rinfrescare il token usando il microservizio Auth su AWS
             const refreshResponse = await axios.post(
-              `${API_URLS.auth}/auth/refresh`,
+              `${API_URLS.auth}/api/auth/refresh`,
               { refresh_token: refreshToken },
               {
                 headers: {
