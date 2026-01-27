@@ -28,7 +28,7 @@ export default function ForgotPasswordPage() {
         navigate('/login')
       }, 2000)
     } catch (error) {
-      console.error('Request password reset error:', error)
+      // Silently handle password reset request errors
     }
   }
 

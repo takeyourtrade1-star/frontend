@@ -29,7 +29,7 @@ export default function EmailVerificationBanner() {
       setSendSuccess(true)
       setTimeout(() => setSendSuccess(false), 3000)
     } catch (error) {
-      console.error('Error sending verification code:', error)
+      // Silently handle verification code sending errors
     }
   }
 

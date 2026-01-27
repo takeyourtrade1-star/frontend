@@ -3,7 +3,7 @@
  */
 
 import { useState, useEffect } from 'react'
-import { searchApiConfig } from '@/config/searchApi'
+import { searchApi } from '@/lib/searchApi'
 import type { SetListResponse, NavigationSet } from '@/types'
 
 export function useSets() {
@@ -18,17 +18,7 @@ export function useSets() {
         setLoading(true)
         setError(null)
 
-        const response = await fetch(searchApiConfig.endpoints.sets, {
-          headers: {
-            'Accept': 'application/json',
-          },
-        })
-
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`)
-        }
-
-        const data: SetListResponse = await response.json()
+        const data = await searchApi.getSets()
 
         if (data.success && Array.isArray(data.data)) {
           setSets(data.data)

@@ -5,7 +5,9 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { searchApiConfig, type AutocompleteResponse, type Printing, type Card, type Set, type AutocompleteResult } from '@/config/searchApi'
+import { AxiosError } from 'axios'
+import { searchApi } from '@/lib/searchApi'
+import type { AutocompleteResponse, Printing, Card, Set, AutocompleteResult } from '@/config/searchApi'
 import { useLanguage } from '@/contexts/LanguageContext'
 
 interface UseHybridAutocompleteOptions {
@@ -18,6 +20,7 @@ export interface PrintingWithTranslation extends Printing {
   originalName?: string // Nome inglese originale (per fallback)
   preferredName?: string // Nome tradotto (prioritario)
   type?: 'card' // Tipo per distinguere le carte
+  image_uri_normal?: string | null // Immagine classica per preview
 }
 
 // Tipo per risultati misti (carte e set)
@@ -60,18 +63,16 @@ export function useHybridAutocomplete(
       throw new Error(`Troppe richieste. Attendi ${waitTime} secondi.`)
     }
 
-    const url = `${searchApiConfig.endpoints.autocomplete}?term=${encodeURIComponent(searchTerm.trim())}`
-    
-    const response = await fetch(url, {
-      signal: abortControllerRef.current?.signal,
-      headers: {
-        'Accept': 'application/json',
-      },
-    })
-
-    if (!response.ok) {
-      if (response.status === 429) {
-        // Gestisci rate limiting: blocca le richieste per 30 secondi
+    try {
+      const data = await searchApi.autocomplete(searchTerm.trim())
+      
+      // Reset rate limit se la richiesta è andata a buon fine
+      rateLimitRef.current = { blocked: false, until: 0 }
+      
+      return data
+    } catch (error: unknown) {
+      // Gestisci rate limiting (429)
+      if (error instanceof AxiosError && error.response?.status === 429) {
         const retryAfter = 30 // secondi
         rateLimitRef.current = {
           blocked: true,
@@ -79,16 +80,12 @@ export function useHybridAutocomplete(
         }
         throw new Error(`Troppe richieste. Attendi ${retryAfter} secondi.`)
       }
-      throw new Error(`HTTP error! status: ${response.status}`)
+      throw error
     }
-
-    // Reset rate limit se la richiesta è andata a buon fine
-    rateLimitRef.current = { blocked: false, until: 0 }
-
-    return response.json()
   }, [])
 
-  // Funzione per chiamare API by-oracle-id con più ID separati da virgola
+  // Funzione per chiamare API by-oracle-ids-paginated con più ID
+  // Usa l'endpoint dedicato del backend Python per ricerca efficiente
   const fetchByOracleIds = useCallback(async (oracleIds: string[]): Promise<AutocompleteResponse> => {
     // Controlla se siamo in rate limit
     if (rateLimitRef.current.blocked && Date.now() < rateLimitRef.current.until) {
@@ -96,21 +93,56 @@ export function useHybridAutocomplete(
       throw new Error(`Troppe richieste. Attendi ${waitTime} secondi.`)
     }
 
-    // Usa l'endpoint by-oracle-ids-paginated che accetta più ID
-    // Per l'autocomplete, usiamo page=1 e limitiamo i risultati
-    const idsParam = oracleIds.join(',')
-    const url = searchApiConfig.endpoints.searchByOracleIdsPaginated(idsParam, 1, 'relevance')
-    
-    const response = await fetch(url, {
-      signal: abortControllerRef.current?.signal,
-      headers: {
-        'Accept': 'application/json',
-      },
-    })
+    try {
+      // Limita a max 100 IDs (limite backend)
+      const limitedIds = oracleIds.slice(0, 100)
 
-    if (!response.ok) {
-      if (response.status === 429) {
-        // Gestisci rate limiting: blocca le richieste per 30 secondi
+      // Usa l'endpoint dedicato per ricerca per IDs (molto più efficiente!)
+      const data = await searchApi.searchByOracleIdsPaginated({
+        ids: limitedIds,
+        page: 1,
+        sort: 'relevance',
+        per_page: 10, // Limita a 10 risultati per autocomplete
+      })
+
+      // Reset rate limit se la richiesta è andata a buon fine
+      rateLimitRef.current = { blocked: false, until: 0 }
+
+      // Converte SearchResultsResponse in AutocompleteResponse
+      // Il backend restituisce SearchResultsResponse con data.data come array di Card/Set
+      if (data.success && data.data?.data) {
+        // Mappa i risultati al formato Printing per autocomplete
+        // Filtra solo le carte (esclude i set) e mappa al formato Printing
+        const printings: Printing[] = data.data.data
+          .filter((item): item is Card & { type?: 'card' } => {
+            // Verifica che sia una Card (ha oracle_id o printing_id, non ha code come i Set)
+            return ('oracle_id' in item || 'printing_id' in item) && !('code' in item)
+          })
+          .map((item) => ({
+            printing_id: item.printing_id || (typeof item.id === 'string' ? item.id : '') || '',
+            oracle_id: item.oracle_id || '',
+            name: item.name || item.printed_name || '',
+            set_name: item.set_name || item.set_code || '',
+            collector_number: item.collector_number || '',
+            image_uri_small: item.image_uri_small || null,
+            image_uri_normal: item.image_uri_normal || null, // Aggiungi immagine classica
+          } as Printing))
+
+        return {
+          success: true,
+          cached: data.cached || false,
+          data: printings,
+        }
+      }
+
+      return {
+        success: true,
+        cached: false,
+        data: [],
+      }
+    } catch (error: unknown) {
+      // Gestisci rate limiting (429)
+      if (error instanceof AxiosError && error.response?.status === 429) {
         const retryAfter = 30 // secondi
         rateLimitRef.current = {
           blocked: true,
@@ -118,51 +150,7 @@ export function useHybridAutocomplete(
         }
         throw new Error(`Troppe richieste. Attendi ${retryAfter} secondi.`)
       }
-      throw new Error(`HTTP error! status: ${response.status}`)
-    }
-
-    // Reset rate limit se la richiesta è andata a buon fine
-    rateLimitRef.current = { blocked: false, until: 0 }
-
-    const responseData = await response.json()
-    
-    // L'endpoint paginated restituisce una struttura diversa:
-    // { success, cached, data: { pagination: {...}, data: Card[] } }
-    // Dobbiamo convertire Card[] in Printing[] e poi al formato AutocompleteResponse
-    if (responseData.success && responseData.data && Array.isArray(responseData.data.data)) {
-      const cards: Card[] = responseData.data.data
-      
-      // Converti Card[] in Printing[]
-      const printings: Printing[] = cards
-        .filter(card => card.oracle_id && card.printing_id) // Filtra solo le carte valide
-        .map(card => ({
-          printing_id: card.printing_id!,
-          oracle_id: card.oracle_id,
-          name: card.name,
-          set_name: card.set_name || '',
-          collector_number: card.collector_number || '',
-          // Usa image_uri_small se disponibile, altrimenti prova front_image_url o image_uri_normal
-          image_uri_small: card.image_uri_small || card.front_image_url || card.image_uri_normal || null,
-        }))
-      
-      return {
-        success: true,
-        cached: responseData.cached || false,
-        data: printings,
-      }
-    }
-    
-    // Fallback: prova con il formato standard (se restituisce direttamente Printing[])
-    if (responseData.success && Array.isArray(responseData.data)) {
-      return responseData
-    }
-    
-    // Se non è nessuno dei formati attesi, restituisci errore
-    return {
-      success: false,
-      cached: false,
-      error: 'Formato risposta API non riconosciuto',
-      data: [],
+      throw error
     }
   }, [])
 

@@ -24,7 +24,7 @@ export default function UserProfileTab() {
       const data = await fetchUserProfile()
       setProfile(data)
     } catch (error) {
-      console.error('Error loading profile:', error)
+      // Silently handle loading errors
     } finally {
       setIsLoading(false)
     }
@@ -41,7 +41,7 @@ export default function UserProfileTab() {
         setIsEditMode(false)
       }
     } catch (error) {
-      console.error('Error saving profile:', error)
+      // Silently handle saving errors
     }
   }
 

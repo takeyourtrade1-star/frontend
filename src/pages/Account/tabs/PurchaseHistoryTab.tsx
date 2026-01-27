@@ -59,7 +59,7 @@ export default function PurchaseHistoryTab() {
       setTotalPages(response.last_page)
       setTotalItems(response.total)
     } catch (error) {
-      console.error('Error loading orders:', error)
+      // Silently handle loading errors
     } finally {
       setIsLoading(false)
     }

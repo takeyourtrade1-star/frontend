@@ -5,7 +5,7 @@
 
 import axios, { AxiosError, AxiosInstance, InternalAxiosRequestConfig } from 'axios'
 import type { CollectionItem, CollectionFilters, ApiResponse } from '@/types'
-import { config } from '@/lib/config'
+import { config, API_URLS } from '@/lib/config'
 
 class CollectionApiClient {
   private instance: AxiosInstance
@@ -59,7 +59,6 @@ class CollectionApiClient {
 
           if (!refreshToken) {
             // Se non c'è refresh token, fai il logout forzato
-            console.error('⚠️ No refresh token found. Logging out.')
             this.forceLogout()
             return Promise.reject(error)
           }
@@ -84,9 +83,9 @@ class CollectionApiClient {
           this.isRefreshing = true
 
           try {
-            // Tenta di rinfrescare il token
+            // Tenta di rinfrescare il token usando il microservizio Auth su AWS
             const refreshResponse = await axios.post(
-              `${config.auth.baseURL}/auth/refresh`,
+              `${API_URLS.auth}/auth/refresh`,
               { refresh_token: refreshToken },
               {
                 headers: {
@@ -121,17 +120,12 @@ class CollectionApiClient {
 
           } catch (refreshError) {
             // Refresh fallito! Logout forzato
-            console.error('⚠️ Refresh token failed. Logging out.', refreshError)
             this.processQueue(refreshError)
             this.forceLogout()
             return Promise.reject(refreshError)
           } finally {
             this.isRefreshing = false
           }
-        } else if (error.response?.status === 503) {
-          console.error('🔴 Service Unavailable: Collection Service is not responding')
-        } else if (error.response?.status === 500) {
-          console.error('🔴 Server Error:', error.response.data)
         }
 
         // Per tutti gli altri errori, rigetta la promise

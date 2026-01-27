@@ -5,7 +5,7 @@
 
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { api } from '@/lib/api'
+import { authApi } from '@/lib/authApi'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import { ExternalLink } from 'lucide-react'
 import type { HealthCheck } from '@/types'
@@ -21,14 +21,10 @@ export default function HealthPage() {
     setResult(null)
 
     try {
-      // Test con logging debug
-      console.log("=== HEALTH PAGE TEST ===");
-      await api.testConnection();
-      
-      const response = await api.get<HealthCheck>('/health')
+      // Usa authApi per puntare al microservizio Auth su AWS
+      const response = await authApi.get<HealthCheck>('/health')
       setResult(response.data || null)
     } catch (err: any) {
-      console.error("Health test error:", err);
       setError(err.message || 'Errore durante il test di connessione')
     } finally {
       setLoading(false)

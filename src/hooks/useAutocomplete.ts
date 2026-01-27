@@ -5,7 +5,8 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { searchApiConfig, type AutocompleteResponse, type AutocompleteResult } from '@/config/searchApi'
+import { searchApi } from '@/lib/searchApi'
+import type { AutocompleteResponse, AutocompleteResult } from '@/config/searchApi'
 
 interface UseAutocompleteOptions {
   debounceMs?: number
@@ -24,7 +25,7 @@ export function useAutocomplete(
   options: UseAutocompleteOptions = {}
 ): UseAutocompleteResult {
   const {
-    debounceMs = 150, // Ottimizzato per velocità secondo documentazione
+    debounceMs = 150, // Ottimizzato per velocità 
     minLength = 2,
   } = options
 
@@ -60,36 +61,11 @@ export function useAutocomplete(
     setLoading(true)
 
     try {
-      const url = `${searchApiConfig.endpoints.autocomplete}?term=${encodeURIComponent(searchTerm.trim())}`
-      console.log('Autocomplete API URL:', url)
-      
-      const response = await fetch(url, {
-        signal: controller.signal,
-        headers: {
-          'Accept': 'application/json',
-        },
-      })
-
-      // Leggi il JSON anche se response.ok è false (alcuni server restituiscono JSON negli errori)
-      let data: AutocompleteResponse
-      try {
-        data = await response.json()
-      } catch (jsonError) {
-        // Se non riesce a leggere il JSON, usa un errore generico
-        throw new Error(`HTTP error! status: ${response.status} - ${response.statusText}`)
-      }
-      
-      console.log('Autocomplete API response:', data)
+      const data = await searchApi.autocomplete(searchTerm.trim())
       
       // Verifica che la richiesta non sia stata cancellata
       if (!controller.signal.aborted) {
-        if (!response.ok) {
-          // Se HTTP status non è OK, usa l'errore dal JSON se disponibile
-          const errorMessage = data.error || `HTTP error! status: ${response.status}`
-          setError(errorMessage)
-          setResults([])
-          setCached(false)
-        } else if (data.success && Array.isArray(data.data)) {
+        if (data.success && Array.isArray(data.data)) {
           // Successo!
           setResults(data.data)
           setCached(data.cached || false)
@@ -107,13 +83,12 @@ export function useAutocomplete(
       }
     } catch (err) {
       // Ignora errori di cancellazione
-      if (err instanceof Error && err.name !== 'AbortError') {
-        console.error('Autocomplete API error:', err)
+      if (err instanceof Error && err.name !== 'AbortError' && !controller.signal.aborted) {
         let errorMessage = 'Errore durante la ricerca'
         
         if (err.message.includes('Failed to fetch') || err.message.includes('NetworkError')) {
           errorMessage = 'Errore di connessione'
-        } else if (err.message.includes('HTTP error')) {
+        } else if (err.message.includes('HTTP error') || err.message.includes('status')) {
           errorMessage = `Errore del server: ${err.message}`
         }
         

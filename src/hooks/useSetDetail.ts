@@ -3,7 +3,8 @@
  */
 
 import { useState, useEffect } from 'react'
-import { searchApiConfig } from '@/config/searchApi'
+import { AxiosError } from 'axios'
+import { searchApi } from '@/lib/searchApi'
 import type { SetDetailResponse, NavigationSet, NavigationPrinting } from '@/types'
 
 export function useSetDetail(setCode: string) {
@@ -24,20 +25,7 @@ export function useSetDetail(setCode: string) {
         setLoading(true)
         setError(null)
 
-        const response = await fetch(searchApiConfig.endpoints.set(setCode), {
-          headers: {
-            'Accept': 'application/json',
-          },
-        })
-
-        if (!response.ok) {
-          if (response.status === 404) {
-            throw new Error('Set not found')
-          }
-          throw new Error(`HTTP error! status: ${response.status}`)
-        }
-
-        const data: SetDetailResponse = await response.json()
+        const data = await searchApi.getSetDetail(setCode)
 
         if (data.success && data.data) {
           setSetInfo(data.data.set_info)
@@ -46,8 +34,14 @@ export function useSetDetail(setCode: string) {
         } else {
           throw new Error(data.error || 'Failed to fetch set detail')
         }
-      } catch (err: any) {
-        setError(err.message || 'Error fetching set detail')
+      } catch (err: unknown) {
+        if (err instanceof AxiosError && err.response?.status === 404) {
+          setError('Set not found')
+        } else if (err instanceof Error) {
+          setError(err.message || 'Error fetching set detail')
+        } else {
+          setError('Error fetching set detail')
+        }
         setSetInfo(null)
         setCards([])
       } finally {

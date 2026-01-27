@@ -15,6 +15,8 @@ import type {
   AddressesResponse,
 } from '@/types'
 import { api } from '@/lib/api'
+import { authApi } from '@/lib/authApi'
+import { API_URLS } from '@/lib/config'
 
 /**
  * Simula una chiamata API con delay
@@ -123,11 +125,31 @@ export async function fetchUserProfile(): Promise<UserProfileData> {
 
 /**
  * Update user profile
+ * PUT /api/profile o PATCH /api/profile
+ * Usa authApi per puntare al microservizio Auth su AWS
  */
-export async function updateUserProfile(data: Partial<UserProfileData>): Promise<UserProfileData> {
-  await delay(500)
-  // In futuro chiamerà API
-  throw new Error('Not implemented')
+export async function updateUserProfile(data: {
+  first_name?: string
+  last_name?: string
+  city?: string
+  bio?: string
+  birth_date?: string
+  gender?: string
+  phone?: string
+  phone_prefix?: string
+  // Altri campi opzionali del profilo
+  [key: string]: any
+}): Promise<{ success: boolean; message?: string; data?: any }> {
+  try {
+    const response = await authApi.put('/profile', data)
+    return {
+      success: response.success ?? true,
+      message: response.message,
+      data: response.data,
+    }
+  } catch (error: any) {
+    throw new Error(error.response?.data?.message || error.message || 'Errore durante l\'aggiornamento del profilo')
+  }
 }
 
 /**
@@ -291,21 +313,9 @@ export async function updateActivityStatusApi(
       throw new Error('Token di autenticazione non trovato. Effettua il login.')
     }
 
-    // Costruisci l'URL completo secondo le specifiche del backend
-    const baseURL = import.meta.env.DEV 
-      ? '/api' 
-      : 'https://enter.takeyourtrade.com/api'
-    const url = `${baseURL}/profile/activity-status`
+    // Usa il microservizio Auth su AWS
+    const url = `${API_URLS.auth}/profile/activity-status`
 
-    console.log('🔵 Chiamata API Activity Status:', {
-      method: 'PUT',
-      url,
-      activityStatus,
-      hasToken: !!token,
-      tokenPreview: token ? `${token.substring(0, 20)}...` : 'N/A'
-    })
-
-    // Usa fetch direttamente per avere più controllo e debug
     const response = await fetch(url, {
       method: 'PUT',
       headers: {
@@ -318,15 +328,7 @@ export async function updateActivityStatusApi(
       }),
     })
 
-    console.log('📡 Risposta HTTP:', {
-      status: response.status,
-      statusText: response.statusText,
-      ok: response.ok,
-      headers: Object.fromEntries(response.headers.entries())
-    })
-
     const data = await response.json()
-    console.log('📦 Dati risposta:', data)
 
     if (!response.ok) {
       // Gestione errori dettagliata
@@ -361,8 +363,6 @@ export async function updateActivityStatusApi(
       message: data.message,
     }
   } catch (error: any) {
-    console.error('❌ Errore durante l\'aggiornamento dello stato attività:', error)
-    
     // Se è già un errore con messaggio, rilancialo
     if (error.message) {
       throw error
@@ -380,13 +380,13 @@ export async function updateActivityStatusApi(
 /**
  * Get user profile
  * GET /api/profile
+ * Usa authApi per puntare al microservizio Auth su AWS
  */
 export async function getUserProfile(): Promise<any> {
   try {
-    const response = await api.get('/profile')
+    const response = await authApi.get('/profile')
     return response.data || response
   } catch (error: any) {
-    console.error('Error fetching user profile:', error)
     throw new Error(error.response?.data?.message || error.message || 'Errore durante il caricamento del profilo')
   }
 }
@@ -410,10 +410,8 @@ export async function updatePassword(data: {
       throw new Error('Token di autenticazione non trovato. Effettua il login.')
     }
 
-    const baseURL = import.meta.env.DEV 
-      ? '/api' 
-      : 'https://enter.takeyourtrade.com/api'
-    const url = `${baseURL}/profile/password`
+    // Usa il microservizio Auth su AWS
+    const url = `${API_URLS.auth}/profile/password`
 
     const response = await fetch(url, {
       method: 'PUT',
@@ -447,7 +445,6 @@ export async function updatePassword(data: {
       message: responseData.message,
     }
   } catch (error: any) {
-    console.error('Error updating password:', error)
     throw error
   }
 }
@@ -463,10 +460,8 @@ export async function getAddresses(): Promise<AddressesResponse> {
       throw new Error('Token di autenticazione non trovato. Effettua il login.')
     }
 
-    const baseURL = import.meta.env.DEV 
-      ? '/api' 
-      : 'https://enter.takeyourtrade.com/api'
-    const url = `${baseURL}/addresses`
+    // Usa il microservizio Auth su AWS
+    const url = `${API_URLS.auth}/addresses`
 
     const response = await fetch(url, {
       method: 'GET',
@@ -493,7 +488,6 @@ export async function getAddresses(): Promise<AddressesResponse> {
 
     return data.data
   } catch (error: any) {
-    console.error('Error fetching addresses:', error)
     throw error
   }
 }
@@ -516,10 +510,8 @@ export async function updateMainAddress(data: {
       throw new Error('Token di autenticazione non trovato. Effettua il login.')
     }
 
-    const baseURL = import.meta.env.DEV 
-      ? '/api' 
-      : 'https://enter.takeyourtrade.com/api'
-    const url = `${baseURL}/addresses/main`
+    // Usa il microservizio Auth su AWS
+    const url = `${API_URLS.auth}/addresses/main`
 
     const response = await fetch(url, {
       method: 'PUT',
@@ -554,7 +546,6 @@ export async function updateMainAddress(data: {
       data: responseData.data,
     }
   } catch (error: any) {
-    console.error('Error updating main address:', error)
     throw error
   }
 }
@@ -581,10 +572,8 @@ export async function createSecondaryAddress(data: {
       throw new Error('Token di autenticazione non trovato. Effettua il login.')
     }
 
-    const baseURL = import.meta.env.DEV 
-      ? '/api' 
-      : 'https://enter.takeyourtrade.com/api'
-    const url = `${baseURL}/addresses`
+    // Usa il microservizio Auth su AWS
+    const url = `${API_URLS.auth}/addresses`
 
     const response = await fetch(url, {
       method: 'POST',
@@ -619,7 +608,6 @@ export async function createSecondaryAddress(data: {
       data: responseData.data,
     }
   } catch (error: any) {
-    console.error('Error creating secondary address:', error)
     throw error
   }
 }
@@ -649,10 +637,8 @@ export async function updateSecondaryAddress(
       throw new Error('Token di autenticazione non trovato. Effettua il login.')
     }
 
-    const baseURL = import.meta.env.DEV 
-      ? '/api' 
-      : 'https://enter.takeyourtrade.com/api'
-    const url = `${baseURL}/addresses/${id}`
+    // Usa il microservizio Auth su AWS
+    const url = `${API_URLS.auth}/addresses/${id}`
 
     const response = await fetch(url, {
       method: 'PUT',
@@ -689,7 +675,6 @@ export async function updateSecondaryAddress(
       data: responseData.data,
     }
   } catch (error: any) {
-    console.error('Error updating secondary address:', error)
     throw error
   }
 }
@@ -705,10 +690,8 @@ export async function deleteSecondaryAddress(id: number): Promise<{ success: boo
       throw new Error('Token di autenticazione non trovato. Effettua il login.')
     }
 
-    const baseURL = import.meta.env.DEV 
-      ? '/api' 
-      : 'https://enter.takeyourtrade.com/api'
-    const url = `${baseURL}/addresses/${id}`
+    // Usa il microservizio Auth su AWS
+    const url = `${API_URLS.auth}/addresses/${id}`
 
     const response = await fetch(url, {
       method: 'DELETE',
@@ -740,7 +723,6 @@ export async function deleteSecondaryAddress(id: number): Promise<{ success: boo
       message: responseData.message,
     }
   } catch (error: any) {
-    console.error('Error deleting secondary address:', error)
     throw error
   }
 }
@@ -748,6 +730,7 @@ export async function deleteSecondaryAddress(id: number): Promise<{ success: boo
 /**
  * Complete user profile
  * POST /api/profile/complete
+ * Usa authApi per puntare al microservizio Auth su AWS
  */
 export async function completeProfile(data: {
   birth_date: string
@@ -759,14 +742,13 @@ export async function completeProfile(data: {
   country: string
 }): Promise<{ success: boolean; message?: string; data?: any }> {
   try {
-    const response = await api.post('/profile/complete', data)
+    const response = await authApi.post('/profile/complete', data)
     return {
       success: response.success ?? true,
       message: response.message,
       data: response.data,
     }
   } catch (error: any) {
-    console.error('Error completing profile:', error)
     throw new Error(error.response?.data?.message || error.message || 'Errore durante il completamento del profilo')
   }
 }

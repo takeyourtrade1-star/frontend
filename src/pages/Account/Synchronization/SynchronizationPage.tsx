@@ -32,7 +32,6 @@ export default function SynchronizationPage() {
       setCopyStatus('copied')
       setTimeout(() => setCopyStatus('idle'), 2000)
     } catch (error) {
-      console.error('Unable to copy webhook url:', error)
       setCopyStatus('error')
       setTimeout(() => setCopyStatus('idle'), 2000)
     }

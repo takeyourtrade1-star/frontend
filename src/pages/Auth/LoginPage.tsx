@@ -23,8 +23,6 @@ export default function LoginPage() {
   // Test automatico all'avvio
   useEffect(() => {
     const runInitialTests = async () => {
-      console.log('🚀 Running initial connection tests...')
-      console.log('🔍 Current auth state:', { isAuthenticated, user })
       await testApiConnection()
       await testAccount('test-debug@example.com', 'password123', 'Test automatico - account funzionante')
     }
@@ -35,13 +33,9 @@ export default function LoginPage() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     clearError()
-
-    // Aggiungi test automatico prima del login
-    console.log('🔍 Testing login with credentials:', { email, password })
     
     try {
       await login({ email, password })
-      console.log('✅ Login successful')
       // Reindirizza alla pagina salvata o rimani sulla pagina corrente
       const from = (location.state as any)?.from || window.location.pathname
       // Se viene da /login o è la home, vai alla dashboard, altrimenti rimani dove sei
@@ -51,8 +45,6 @@ export default function LoginPage() {
         navigate(from, { replace: true })
       }
     } catch (error: any) {
-      console.error('❌ Login error:', error)
-      
       // Aggiungi dettagli dell'errore ai risultati debug
       const errorResult = {
         email: email,
@@ -67,9 +59,6 @@ export default function LoginPage() {
       }
       
       setDebugResults(prev => [...prev, errorResult])
-      
-      // Non navigare alla pagina di errore, mostra i dettagli qui
-      console.log('🔍 Error details:', errorResult)
     }
   }
 
@@ -77,7 +66,6 @@ export default function LoginPage() {
   const testAccount = async (testEmail: string, testPassword: string, description: string) => {
     const startTime = Date.now()
     try {
-      console.log(`Testing login for: ${testEmail}`)
       const response = await authApi.post('/auth/login', {
         email: testEmail,
         password: testPassword
@@ -386,9 +374,7 @@ export default function LoginPage() {
                     </button>
                     <button
                       onClick={() => {
-                        console.log('🔍 Testing with authStore.login...')
                         login({ email, password }).catch(error => {
-                          console.error('❌ authStore.login error:', error)
                           const errorResult = {
                             email: email,
                             password: password,

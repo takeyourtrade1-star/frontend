@@ -40,7 +40,7 @@ export default function LoginSidebar({ isOpen, onClose }: LoginSidebarProps) {
         navigate(from, { replace: true })
       }
     } catch (error) {
-      console.error('Login error:', error)
+      // Silently handle login errors
     }
   }
 

@@ -31,7 +31,6 @@ export default function SearchDebug() {
     
     try {
       const url = `${searchApiConfig.endpoints.autocomplete}?term=black`
-      console.log('Testing URL:', url)
       
       const response = await fetch(url)
       
@@ -64,7 +63,6 @@ export default function SearchDebug() {
     
     try {
       const url = `${searchApiConfig.endpoints.search}?term=black&page=1&sort=relevance`
-      console.log('Testing URL:', url)
       
       const response = await fetch(url)
       

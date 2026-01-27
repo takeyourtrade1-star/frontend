@@ -30,17 +30,20 @@ export interface LoginCredentials {
 }
 
 export interface RegisterData {
-  account_type: 'personal' | 'business'
+  account_type: 'personal' | 'business' | 'private' // AWS usa 'private' invece di 'business'
   country: string
   phone_prefix: string
-  telefono: string
+  phone?: string // AWS si aspetta 'phone'
+  telefono?: string // Mantenuto per retrocompatibilità
   email: string
   username: string
   password: string
   password_confirmation: string
-  // Personal fields
-  nome?: string
-  cognome?: string
+  // Personal fields - AWS accetta varianti: nome/firstName per first_name
+  first_name?: string // Campo principale per AWS
+  last_name?: string // Campo principale per AWS
+  nome?: string // Variante accettata da AWS
+  cognome?: string // Variante accettata da AWS
   // Business fields
   ragione_sociale?: string
   piva?: string

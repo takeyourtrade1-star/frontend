@@ -62,7 +62,6 @@ export default function CompleteProfileBanner() {
         
         setProfileComplete(isComplete)
       } catch (error) {
-        console.error('Error checking profile:', error)
         // In caso di errore, mostra comunque il banner per sicurezza
         setProfileComplete(false)
       } finally {
@@ -120,7 +119,7 @@ export default function CompleteProfileBanner() {
           // Emetti evento per aggiornare altre pagine
           window.dispatchEvent(new Event('profileUpdated'))
         } catch (error) {
-          console.error('Error reloading profile:', error)
+          // Silently handle profile reload errors
         }
         
         setTimeout(() => {
@@ -129,8 +128,6 @@ export default function CompleteProfileBanner() {
         }, 2000)
       }
     } catch (error: any) {
-      console.error('Error completing profile:', error)
-      
       // Gestione errori di validazione
       if (error.response?.data?.errors) {
         setErrors(error.response.data.errors)

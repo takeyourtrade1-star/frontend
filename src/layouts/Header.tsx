@@ -14,6 +14,7 @@ import HeaderMenuButtons from '@/components/header/HeaderMenuButtons'
 import SidebarMenu from '@/components/header/SidebarMenu'
 import LoginSidebar from '@/components/header/LoginSidebar'
 import SearchBar from '@/components/header/SearchBar'
+import LanguageSelectorBottomBar from '@/components/header/LanguageSelectorBottomBar'
 
 export default function Header() {
   const navigate = useNavigate()
@@ -88,6 +89,9 @@ export default function Header() {
         isOpen={isLoginSidebarOpen}
         onClose={() => setIsLoginSidebarOpen(false)}
       />
+
+      {/* Language Selector Bottom Bar (Mobile) */}
+      <LanguageSelectorBottomBar />
 
       {/* Responsive Styles - Media Queries Incrementali */}
       <style>{`

@@ -61,13 +61,13 @@ export const useAuthStore = create<AuthState>()(
         const refreshToken = localStorage.getItem(config.auth.refreshTokenKey)
         const userStr = localStorage.getItem(config.auth.userKey)
         
-        // Se ci sono i token, validiamo la sessione chiamando /api/auth/me
+        // Se ci sono i token, validiamo la sessione chiamando /auth/me
         if (accessToken) {
           try {
             // Imposta il token per le richieste
             authApi.setToken(accessToken)
             
-            // Valida la sessione chiamando /api/auth/me
+            // Valida la sessione chiamando /auth/me
             // L'interceptor gestirà automaticamente il refresh se il token è scaduto
             const response = await authApi.get('/auth/me') as any
             
@@ -90,7 +90,6 @@ export const useAuthStore = create<AuthState>()(
           } catch (error) {
             // Se la chiamata fallisce (e anche il refresh fallisce),
             // l'interceptor avrà già fatto il logout forzato
-            console.error('Error validating session:', error)
             
             // Se non c'è refresh token o la validazione è fallita, pulisci tutto
             if (!refreshToken) {
@@ -154,16 +153,7 @@ export const useAuthStore = create<AuthState>()(
         set({ isLoading: true, error: null })
         
         try {
-          // Log per debug - verifica cosa viene inviato
-          console.log('📤 Invio dati registrazione al backend:', {
-            ...data,
-            password: '***',
-            password_confirmation: '***'
-          })
-          
           const response = await authApi.post('/auth/register', data) as any
-          
-          console.log('📥 Risposta registrazione:', response)
           
           // Estrae i dati dalla risposta (supporta sia response.data.data che response.data)
           const responseData = response.data || response
@@ -197,7 +187,21 @@ export const useAuthStore = create<AuthState>()(
             throw new Error(response.message || responseData.message || 'Registrazione fallita')
           }
         } catch (error: any) {
-          const errorMessage = error.response?.data?.message || error.message || 'Errore durante la registrazione'
+          // Estrai messaggio errore più dettagliato
+          let errorMessage = 'Errore durante la registrazione'
+          if (error.response?.data) {
+            if (error.response.data.message) {
+              errorMessage = error.response.data.message
+            } else if (error.response.data.errors) {
+              // Se ci sono errori di validazione, mostra il primo
+              const firstError = Object.values(error.response.data.errors)[0]
+              if (Array.isArray(firstError) && firstError.length > 0) {
+                errorMessage = firstError[0] as string
+              }
+            }
+          } else if (error.message) {
+            errorMessage = error.message
+          }
           
           set({
             isLoading: false,
@@ -327,9 +331,6 @@ export const useAuthStore = create<AuthState>()(
             password_confirmation: data.password_confirmation
           }) as any
           
-          // Log della risposta per debug
-          console.log('Reset password response:', response)
-          
           // Controlla se ci sono errori di validazione nella risposta
           if (response.errors && Object.keys(response.errors).length > 0) {
             const errorMessages = Object.values(response.errors).flat().join(', ')
@@ -361,8 +362,6 @@ export const useAuthStore = create<AuthState>()(
             error: null,
           })
         } catch (error: any) {
-          console.error('Reset password error details:', error)
-          
           // Gestisci errori di validazione Laravel/Lumen
           let errorMessage = 'Errore durante il reset password'
           
@@ -465,7 +464,6 @@ export const useAuthStore = create<AuthState>()(
             await authApi.post('/auth/logout', {})
           } catch (error) {
             // Anche se il logout fallisce, procediamo con la pulizia client-side
-            console.warn('Logout API call failed, but continuing with client-side cleanup:', error)
           }
         }
         

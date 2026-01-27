@@ -13,8 +13,8 @@ import './styles/globals.css'
 
 // Inizializza autenticazione da localStorage
 // Non attendiamo il risultato per non bloccare il rendering iniziale
-useAuthStore.getState().initializeAuth().catch((error) => {
-  console.error('Error initializing auth:', error)
+useAuthStore.getState().initializeAuth().catch(() => {
+  // Silently handle initialization errors
 })
 
 // Inizializza stato attività da localStorage

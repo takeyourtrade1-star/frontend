@@ -26,7 +26,6 @@ export default function VerifyEmailPage() {
       setResendSuccess(true)
       setTimeout(() => setResendSuccess(false), 3000)
     } catch (error) {
-      console.error('Error resending verification email:', error)
       navigate('/error?type=verify')
     } finally {
       setIsResending(false)

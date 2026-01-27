@@ -6,7 +6,9 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useSearchParams, useNavigate, Link } from 'react-router-dom'
 import { Loader2, Grid3x3, Camera, ChevronLeft, ChevronRight, ChevronDown, Search, Table, Grid, Package } from 'lucide-react'
-import { searchApiConfig, type Card, type Set, type SearchResult, type SearchResultsResponse } from '@/config/searchApi'
+import { AxiosError } from 'axios'
+import { searchApi } from '@/lib/searchApi'
+import type { Card, Set, SearchResult, SearchResultsResponse } from '@/config/searchApi'
 import Pagination from '@/components/ui/Pagination'
 import { useLanguage } from '@/contexts/LanguageContext'
 
@@ -94,58 +96,42 @@ export default function SearchPage() {
       let hasMorePages = true
       
       // Carica solo le prime pagine per ottenere abbastanza set (in background)
+      // Solo se abbiamo un term valido
+      if (!termParam || termParam.trim() === '') {
+        return
+      }
+
       while (hasMorePages && currentPageForSets <= maxPagesToLoad) {
-        let allSetsApiUrl = ''
-        if (idsParam) {
-          const allSetsParams = new URLSearchParams()
-          allSetsParams.append('ids', idsParam)
-          allSetsParams.append('page', currentPageForSets.toString())
-          allSetsParams.append('sort', sortParam)
-          allSetsParams.append('per_page', perPageForSets.toString())
-          allSetsApiUrl = `${searchApiConfig.baseUrl}/api/search/by-oracle-ids-paginated?${allSetsParams.toString()}`
-        } else {
-          const allSetsParams = new URLSearchParams()
-          if (termParam) allSetsParams.append('term', termParam)
-          allSetsParams.append('page', currentPageForSets.toString())
-          allSetsParams.append('sort', sortParam)
-          allSetsParams.append('per_page', perPageForSets.toString())
-          allSetsParams.append('lang', 'en')
-          allSetsApiUrl = `${searchApiConfig.endpoints.search}?${allSetsParams.toString()}`
-        }
-        
         try {
-          const allSetsResponse = await fetch(allSetsApiUrl, {
-            headers: {
-              'Content-Type': 'application/json',
-            },
+          const allSetsData = await searchApi.searchResults({
+            term: termParam.trim(),
+            page: currentPageForSets,
+            sort: sortParam,
+            per_page: perPageForSets,
           })
           
-          if (allSetsResponse.ok) {
-            const allSetsData: SearchResultsResponse = await allSetsResponse.json()
-            if (allSetsData.success && allSetsData.data) {
-              const pageResults = allSetsData.data.data || []
-              allSetsResults.push(...pageResults)
-              
-              totalPagesForSets = allSetsData.data.pagination.total_pages
-              hasMorePages = currentPageForSets < totalPagesForSets
-              currentPageForSets++
-              
-              // Aggiungi un delay tra le richieste per evitare rate limiting (solo dopo la prima pagina)
-              if (currentPageForSets <= maxPagesToLoad && hasMorePages) {
-                await new Promise(resolve => setTimeout(resolve, 200)) // 200ms di delay
-              }
-            } else {
-              hasMorePages = false
+          if (allSetsData.success && allSetsData.data) {
+            const pageResults = allSetsData.data.data || []
+            allSetsResults.push(...pageResults)
+            
+            totalPagesForSets = allSetsData.data.pagination.total_pages
+            hasMorePages = currentPageForSets < totalPagesForSets
+            currentPageForSets++
+            
+            // Aggiungi un delay tra le richieste per evitare rate limiting (solo dopo la prima pagina)
+            if (currentPageForSets <= maxPagesToLoad && hasMorePages) {
+              await new Promise(resolve => setTimeout(resolve, 200)) // 200ms di delay
             }
-          } else if (allSetsResponse.status === 429) {
-            // Se riceviamo 429, fermiamo il caricamento
+          } else {
+            hasMorePages = false
+          }
+        } catch (fetchErr: any) {
+          // Se c'è un errore di rete o rate limiting, fermiamo il caricamento
+          if (fetchErr.response?.status === 429) {
             hasMorePages = false
           } else {
             hasMorePages = false
           }
-        } catch (fetchErr) {
-          // Se c'è un errore di rete, fermiamo il caricamento
-          hasMorePages = false
         }
       }
       
@@ -181,47 +167,82 @@ export default function SearchPage() {
     setError(null)
 
     try {
-      let apiUrl = ''
-
-      if (idsParam) {
-        // LOGICA TRADOTTA: Chiama la NUOVA API per ricerca via oracle IDs
-        const params = new URLSearchParams()
-        params.append('ids', idsParam)
-        params.append('page', currentPage.toString())
-        params.append('sort', sort)
-        params.append('per_page', perPage.toString())
-        // NON passiamo set perché filtriamo lato client
-        apiUrl = `${searchApiConfig.baseUrl}/api/search/by-oracle-ids-paginated?${params.toString()}`
-      } else {
-        // LOGICA INGLESE/FALLBACK: Chiama la VECCHIA API per ricerca fulltext
-      const params = new URLSearchParams()
-        if (termParam) params.append('term', termParam)
-      // NON passiamo set perché filtriamo lato client
-      params.append('page', currentPage.toString())
-      params.append('sort', sort)
-      params.append('per_page', perPage.toString())
-        params.append('lang', 'en') // Forza inglese per ricerca fulltext
-
-        apiUrl = `${searchApiConfig.endpoints.search}?${params.toString()}`
+      // Se non abbiamo né term né ids, non possiamo fare la ricerca
+      if (!termParam && !idsParam) {
+        setResults([])
+        setAllResults([])
+        setAllSetsForFilter([])
+        setOriginalTotal(0)
+        setPagination(null)
+        setError(null)
+        setIsLoading(false)
+        return
       }
-      
-      const response = await fetch(apiUrl, {
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      })
 
-      if (!response.ok) {
-        if (response.status === 429) {
-          const errorData = await response.json().catch(() => ({}))
-          const retryAfter = errorData.retry_after || 30
-          throw new Error(`Troppe richieste. Attendi ${retryAfter} secondi prima di riprovare.`)
+      // Se abbiamo idsParam ma non termParam, usa l'endpoint dedicato per ricerca per IDs
+      if (idsParam && !termParam) {
+        // Parsing degli IDs separati da virgola
+        const oracleIds = idsParam.split(',').map(id => id.trim()).filter(id => id)
+        
+        if (oracleIds.length === 0) {
+          setError('Nessun ID valido fornito.')
+          setResults([])
+          setAllResults([])
+          setAllSetsForFilter([])
+          setOriginalTotal(0)
+          setPagination(null)
+          setIsLoading(false)
+          return
         }
-        const errorText = await response.text()
-        throw new Error(`HTTP error! status: ${response.status} - ${response.statusText}`)
+
+        // Chiama l'endpoint dedicato per ricerca per IDs
+        const data = await searchApi.searchByOracleIdsPaginated({
+          ids: oracleIds,
+          page: currentPage,
+          sort: sort,
+          per_page: perPage,
+        })
+
+        if (data.success && data.data) {
+          const fetchedResults = data.data.data || []
+          const totalResults = data.data.pagination.total_results
+
+          setAllResults(fetchedResults)
+          setResults(fetchedResults)
+          setOriginalTotal(totalResults)
+          setPagination({
+            current_page: data.data.pagination.current_page,
+            total_pages: data.data.pagination.total_pages,
+            per_page: data.data.pagination.per_page,
+            total: totalResults,
+          })
+
+          setIsLoading(false)
+          return
+        } else {
+          throw new Error(data.error || 'Errore sconosciuto nella risposta API')
+        }
       }
 
-      const data: SearchResultsResponse = await response.json()
+      // Chiama l'API solo se abbiamo un term valido
+      if (!termParam || termParam.trim() === '') {
+        setResults([])
+        setAllResults([])
+        setAllSetsForFilter([])
+        setOriginalTotal(0)
+        setPagination(null)
+        setError(null)
+        setIsLoading(false)
+        return
+      }
+
+      // LOGICA: Chiama la NUOVA API Python per ricerca fulltext
+      const data = await searchApi.searchResults({
+        term: termParam.trim(),
+        page: currentPage,
+        sort: sort,
+        per_page: perPage,
+      })
       
       if (data.success && data.data) {
         const fetchedResults = data.data.data || []
@@ -240,27 +261,38 @@ export default function SearchPage() {
         // Mostra subito i risultati e carica i set in background
         setIsLoading(false)
         
-        // Carica i set in background senza bloccare l'UI (solo se ci sono molte pagine)
-        if (totalResults > 100) {
-          loadSetsInBackground(termParam, idsParam, sort, totalResults)
+        // Carica i set in background senza bloccare l'UI (solo se ci sono molte pagine e abbiamo un term)
+        if (totalResults > 100 && termParam && termParam.trim() !== '') {
+          loadSetsInBackground(termParam, null, sort, totalResults)
         }
       } else {
         throw new Error(data.error || 'Errore sconosciuto nella risposta API')
       }
-    } catch (err) {
+    } catch (err: unknown) {
       let errorMessage = 'Errore durante la ricerca. Riprova più tardi.'
       
-      if (err instanceof Error) {
+      if (err instanceof AxiosError) {
+        // Errore Axios - ha la proprietà response
+        if (err.response?.status === 422) {
+          errorMessage = 'Parametri di ricerca non validi. Verifica i parametri inseriti.'
+        } else if (err.response?.status === 429) {
+          const retryAfter = (err.response?.data as any)?.retry_after || 30
+          errorMessage = `Troppe richieste. Attendi ${retryAfter} secondi prima di riprovare.`
+        } else if (err.response?.status === 500) {
+          errorMessage = 'Errore interno del server. Riprova più tardi.'
+        } else if (err.response?.status) {
+          errorMessage = `Errore del server: status ${err.response.status}`
+        } else if (err.message) {
+          errorMessage = `Errore di connessione: ${err.message}`
+        }
+      } else if (err instanceof Error) {
+        // Errore standard
         if (err.message.includes('Troppe richieste')) {
           errorMessage = err.message
         } else if (err.message.includes('Failed to fetch') || err.message.includes('NetworkError')) {
           errorMessage = 'Errore di connessione. Verifica la tua connessione internet o riprova più tardi.'
         } else if (err.message.includes('HTTP error')) {
-          if (err.message.includes('429')) {
-            errorMessage = 'Troppe richieste. Attendi qualche secondo prima di riprovare.'
-          } else {
-            errorMessage = `Errore del server: ${err.message}`
-          }
+          errorMessage = `Errore del server: ${err.message}`
         } else {
           errorMessage = err.message
         }
@@ -673,11 +705,11 @@ export default function SearchPage() {
 
     return (
       <div
-        className="card p-4 hover:shadow-lg transition-all duration-300 cursor-pointer group"
+        className="card p-2 md:p-4 hover:shadow-lg transition-all duration-300 cursor-pointer group"
         onClick={() => onCardClick(card)}
       >
         {/* Immagine carta */}
-        <div className="aspect-[488/680] mb-4 rounded-lg overflow-hidden bg-gray-100">
+        <div className="aspect-[488/680] mb-2 md:mb-4 rounded-lg overflow-hidden bg-gray-100 max-w-[200px] md:max-w-none mx-auto md:mx-0">
           {imageUrl ? (
             <img
               src={imageUrl}
@@ -690,7 +722,7 @@ export default function SearchPage() {
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center text-gray-400">
-              <Camera className="w-12 h-12 opacity-50" />
+              <Camera className="w-8 h-8 md:w-12 md:h-12 opacity-50" />
             </div>
           )}
         </div>
@@ -767,7 +799,7 @@ export default function SearchPage() {
         onClick={() => onSetClick(set)}
       >
         {/* Icona set */}
-        <td className="px-4 py-3">
+        <td className="px-2 md:px-4 py-3">
           <div className="w-10 h-10 flex items-center justify-center">
             {set.icon_svg_uri ? (
               <img
@@ -785,8 +817,13 @@ export default function SearchPage() {
           </div>
         </td>
 
+        {/* Icona Set (placeholder per allineamento) */}
+        <td className="px-2 md:px-4 py-3">
+          <div className="w-6 h-6"></div>
+        </td>
+
         {/* Nome */}
-        <td className="px-4 py-3">
+        <td className="px-2 md:px-4 py-3">
           <div className="flex items-center gap-2">
             <div className="font-semibold text-gray-900 hover:text-orange-600 transition-colors">
               {set.name}
@@ -803,26 +840,26 @@ export default function SearchPage() {
         </td>
 
         {/* Rarità - N/A per set */}
-        <td className="px-4 py-3">
+        <td className="px-4 py-3 hidden md:table-cell">
           <span className="text-gray-400">-</span>
         </td>
 
         {/* Set - N/A per set */}
-        <td className="px-4 py-3 text-sm text-gray-600">
+        <td className="px-4 py-3 text-sm text-gray-600 hidden md:table-cell">
           {set.set_type && <span className="capitalize">{set.set_type}</span>}
         </td>
 
         {/* Prezzo - N/A per set */}
-        <td className="px-4 py-3">
-          <span className="text-gray-400">-</span>
+        <td className="px-2 md:px-4 py-3">
+          <span className="text-gray-400 text-sm">-</span>
         </td>
 
         {/* Azioni */}
-        <td className="px-4 py-3 text-center" onClick={(e) => e.stopPropagation()}>
+        <td className="px-2 md:px-4 py-3 text-center hidden md:table-cell" onClick={(e) => e.stopPropagation()}>
           {set.code && (
             <Link
               to={`/set/${set.code}`}
-              className="inline-block px-3 py-1 text-xs font-medium text-orange-600 hover:text-orange-700 hover:bg-orange-50 rounded transition-colors"
+              className="inline-block px-2 md:px-3 py-1 text-xs font-medium text-orange-600 hover:text-orange-700 hover:bg-orange-50 rounded transition-colors"
             >
               Vedi dettagli
             </Link>
@@ -893,7 +930,7 @@ export default function SearchPage() {
         onClick={() => onCardClick(card)}
       >
         {/* Icona immagine con hover */}
-        <td className="px-4 py-3">
+        <td className="px-2 md:px-4 py-3">
           <div 
             className="relative inline-block"
             onMouseEnter={() => setHoveredImage(true)}
@@ -924,8 +961,22 @@ export default function SearchPage() {
           </div>
         </td>
 
+        {/* Icona Set */}
+        <td className="px-2 md:px-4 py-3">
+          <div className="w-6 h-6 flex items-center justify-center bg-gray-100 rounded">
+            <span className="text-xs font-bold text-gray-600">
+              {card.set_code 
+                ? card.set_code.toUpperCase().slice(0, 2)
+                : card.set_name 
+                  ? card.set_name.split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2)
+                  : '?'
+              }
+            </span>
+          </div>
+        </td>
+
         {/* Nome */}
-        <td className="px-4 py-3">
+        <td className="px-2 md:px-4 py-3">
           <div>
             <div className="font-semibold text-gray-900 hover:text-orange-600 transition-colors">
               {displayName}
@@ -935,16 +986,11 @@ export default function SearchPage() {
                 {originalName}
               </div>
             )}
-            {card.set_name && (
-              <div className="text-xs text-gray-500 mt-1">
-                {card.set_name}
-              </div>
-            )}
           </div>
         </td>
 
         {/* Rarità */}
-        <td className="px-4 py-3">
+        <td className="px-4 py-3 hidden md:table-cell">
           <div className="flex items-center gap-2">
             <span className="text-lg">{getRarityIcon(card.rarity)}</span>
             {card.rarity && (
@@ -956,27 +1002,27 @@ export default function SearchPage() {
         </td>
 
         {/* Set */}
-        <td className="px-4 py-3 text-sm text-gray-600">
+        <td className="px-4 py-3 text-sm text-gray-600 hidden md:table-cell">
           {card.set_name || '-'}
         </td>
 
         {/* Prezzo */}
-        <td className="px-4 py-3">
+        <td className="px-2 md:px-4 py-3">
           {price !== null ? (
-            <span className="font-semibold text-orange-600">
+            <span className="font-semibold text-orange-600 text-sm md:text-base">
               €{price.toFixed(2)}
             </span>
           ) : (
-            <span className="text-gray-400">-</span>
+            <span className="text-gray-400 text-sm">-</span>
           )}
         </td>
 
         {/* Azioni */}
-        <td className="px-4 py-3 text-center" onClick={(e) => e.stopPropagation()}>
+        <td className="px-2 md:px-4 py-3 text-center hidden md:table-cell" onClick={(e) => e.stopPropagation()}>
           {card.oracle_id && (
             <Link
               to={`/card/${card.oracle_id}${card.printing_id ? `?printing_id=${card.printing_id}` : ''}`}
-              className="inline-block px-3 py-1 text-xs font-medium text-orange-600 hover:text-orange-700 hover:bg-orange-50 rounded transition-colors"
+              className="inline-block px-2 md:px-3 py-1 text-xs font-medium text-orange-600 hover:text-orange-700 hover:bg-orange-50 rounded transition-colors"
             >
               Vedi dettagli
             </Link>
@@ -1194,12 +1240,13 @@ export default function SearchPage() {
                 <table className="w-full">
                   <thead className="bg-orange-500 text-white">
                     <tr>
-                      <th className="px-4 py-3 text-left text-sm font-semibold w-12"></th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold">Nome</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold">Rarità</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold">Set</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold">Da</th>
-                      <th className="px-4 py-3 text-center text-sm font-semibold">Azioni</th>
+                      <th className="px-2 md:px-4 py-3 text-left text-sm font-semibold w-12"></th>
+                      <th className="px-2 md:px-4 py-3 text-left text-sm font-semibold w-12"></th>
+                      <th className="px-2 md:px-4 py-3 text-left text-sm font-semibold">Nome</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold hidden md:table-cell">Rarità</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold hidden md:table-cell">Set</th>
+                      <th className="px-2 md:px-4 py-3 text-left text-sm font-semibold">Da</th>
+                      <th className="px-2 md:px-4 py-3 text-center text-sm font-semibold hidden md:table-cell">Azioni</th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
@@ -1352,7 +1399,7 @@ export default function SearchPage() {
             {/* Vista Card */}
             {viewMode === 'card' && (
               <>
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 md:gap-4">
                   {filteredResults.map((result, index) => {
                     if (result.type === 'set') {
                       const set = result as Set & { type: 'set' }

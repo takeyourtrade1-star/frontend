@@ -24,11 +24,15 @@ export default function HeaderMenuButtons({
           {/* Home Button */}
           <Link
             to="/dashboard"
-            className="w-9 h-9 flex items-center justify-center
-                     bg-[rgba(255,101,5,0.3)] border-2 border-orange-500 rounded-md
-                     text-orange-500
-                     hover:bg-[rgba(255,101,5,0.45)] hover:shadow-[0_0_12px_rgba(255,165,0,0.4)]
-                     transition-all duration-200"
+            className="w-8 h-8 flex items-center justify-center
+                     bg-gray-50 border border-gray-200 rounded-lg
+                     text-gray-600
+                     hover:bg-gray-100 hover:border-gray-300
+                     active:bg-gray-200
+                     transition-all duration-150"
+            style={{
+              borderWidth: '0.5px',
+            }}
             title="Dashboard"
           >
             <Home className="w-4 h-4" />
@@ -37,11 +41,15 @@ export default function HeaderMenuButtons({
           {/* Logout Button */}
           <button
             onClick={onLogout}
-            className="w-9 h-9 flex items-center justify-center
-                     bg-[rgba(255,101,5,0.3)] border-2 border-orange-500 rounded-md
-                     text-orange-500
-                     hover:bg-[rgba(255,101,5,0.45)] hover:shadow-[0_0_12px_rgba(255,165,0,0.4)]
-                     transition-all duration-200"
+            className="w-8 h-8 flex items-center justify-center
+                     bg-gray-50 border border-gray-200 rounded-lg
+                     text-gray-600
+                     hover:bg-gray-100 hover:border-gray-300
+                     active:bg-gray-200
+                     transition-all duration-150"
+            style={{
+              borderWidth: '0.5px',
+            }}
             title="Logout"
           >
             <LogOut className="w-4 h-4" />
@@ -52,14 +60,18 @@ export default function HeaderMenuButtons({
       {/* Hamburger Menu Button */}
       <button
         onClick={onToggleSidebar}
-        className="w-9 h-9 flex items-center justify-center
-                 bg-[rgba(255,101,5,0.3)] border-2 border-orange-500 rounded-md
-                 text-orange-500
-                 hover:bg-[rgba(255,101,5,0.45)] hover:shadow-[0_0_12px_rgba(255,165,0,0.4)]
-                 transition-all duration-200"
+        className="w-8 h-8 flex items-center justify-center
+                 bg-gray-50 border border-gray-200 rounded-lg
+                 text-gray-600
+                 hover:bg-gray-100 hover:border-gray-300
+                 active:bg-gray-200
+                 transition-all duration-150"
+        style={{
+          borderWidth: '0.5px',
+        }}
         title="Menu"
       >
-        <MenuIcon className="w-4 h-4" />
+        <MenuIcon className="w-4 h-4" strokeWidth={2} />
       </button>
     </div>
   )

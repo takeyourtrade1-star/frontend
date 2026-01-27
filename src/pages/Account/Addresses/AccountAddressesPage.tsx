@@ -77,7 +77,6 @@ export default function AccountAddressesPage() {
           })
         }
       } catch (error: any) {
-        console.error('Error loading addresses:', error)
         alert(error.message || 'Errore durante il caricamento degli indirizzi')
       } finally {
         setIsLoading(false)
@@ -132,7 +131,7 @@ export default function AccountAddressesPage() {
         }, 2000)
       }
     } catch (error: any) {
-      console.error('Error updating main address:', error)
+      // Silently handle update errors
       setMainAddressErrors({ general: error.message || 'Errore durante l\'aggiornamento dell\'indirizzo' })
     } finally {
       setIsUpdatingMain(false)
@@ -190,7 +189,7 @@ export default function AccountAddressesPage() {
         }
       }
     } catch (error: any) {
-      console.error('Error saving secondary address:', error)
+      // Silently handle save errors
       setSecondaryAddressErrors({ general: error.message || 'Errore durante il salvataggio dell\'indirizzo' })
     } finally {
       setIsSubmittingSecondary(false)
@@ -209,7 +208,7 @@ export default function AccountAddressesPage() {
         setSecondaryAddresses(prev => prev.filter(addr => addr.id !== id))
       }
     } catch (error: any) {
-      console.error('Error deleting address:', error)
+      // Silently handle delete errors
       alert(error.message || 'Errore durante l\'eliminazione dell\'indirizzo')
     }
   }
@@ -239,7 +238,7 @@ export default function AccountAddressesPage() {
         )
       }
     } catch (error: any) {
-      console.error('Error updating default address:', error)
+      // Silently handle update errors
       alert(error.message || 'Errore durante l\'aggiornamento dell\'indirizzo predefinito')
     }
   }

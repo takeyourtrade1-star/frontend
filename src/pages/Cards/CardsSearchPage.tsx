@@ -5,8 +5,10 @@
 
 import { useState, useEffect } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
+import { AxiosError } from 'axios'
 import { Search, Filter, Loader2, ExternalLink } from 'lucide-react'
-import { searchApiConfig, type Card, type SearchResponse } from '@/config/searchApi'
+import { searchApi } from '@/lib/searchApi'
+import type { Card, SearchResult, SearchResultsResponse } from '@/config/searchApi'
 
 export default function CardsSearchPage() {
   const [searchParams] = useSearchParams()
@@ -20,7 +22,8 @@ export default function CardsSearchPage() {
 
   // Estrai query dalla URL e esegui ricerca
   useEffect(() => {
-    const query = searchParams.get('q') || ''
+    // Supporta sia 'q' (legacy) che 'term' (nuovo)
+    const query = searchParams.get('term') || searchParams.get('q') || ''
     setSearchQuery(query)
     
     if (query) {
@@ -39,26 +42,43 @@ export default function CardsSearchPage() {
     setError(null)
 
     try {
-      const response = await fetch(
-        `${searchApiConfig.endpoints.search}?q=${encodeURIComponent(query)}&page=${page}&per_page=20`,
-        {
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        }
-      )
+      // Usa la nuova API Python con parametro 'term'
+      const data = await searchApi.searchResults({
+        term: query.trim(),
+        page: page,
+        sort: 'relevance',
+        per_page: 20,
+      })
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
+      if (data.success && data.data) {
+        // La nuova API restituisce SearchResultsResponse con struttura diversa
+        const results = data.data.data || []
+        // Filtra solo le carte (escludi i set se presenti)
+        const cardsOnly = results.filter((result: SearchResult) => result.type !== 'set') as Card[]
+        setCards(cardsOnly)
+        setTotalResults(data.data.pagination?.total_results || 0)
+        setCurrentPage(page)
+      } else {
+        throw new Error(data.error || 'Errore sconosciuto nella risposta API')
       }
-
-      const data: SearchResponse = await response.json()
-      setCards(data.results || [])
-      setTotalResults(data.pagination?.total || 0)
-      setCurrentPage(page)
-    } catch (err) {
-      console.error('Search error:', err)
-      setError('Errore durante la ricerca. Riprova più tardi.')
+    } catch (err: unknown) {
+      let errorMessage = 'Errore durante la ricerca. Riprova più tardi.'
+      
+      if (err instanceof AxiosError) {
+        if (err.response?.status === 422) {
+          errorMessage = 'Parametri di ricerca non validi. Verifica i parametri inseriti.'
+        } else if (err.response?.status === 429) {
+          errorMessage = 'Troppe richieste. Attendi qualche secondo prima di riprovare.'
+        } else if (err.response?.status === 500) {
+          errorMessage = 'Errore interno del server. Riprova più tardi.'
+        } else if (err.response?.status) {
+          errorMessage = `Errore del server: status ${err.response.status}`
+        }
+      } else if (err instanceof Error) {
+        errorMessage = err.message
+      }
+      
+      setError(errorMessage)
       setCards([])
       setTotalResults(0)
     } finally {
@@ -68,26 +88,16 @@ export default function CardsSearchPage() {
 
   // Gestione click su carta
   const handleCardClick = (card: Card) => {
-    console.log('🔍 Carta selezionata da CardsSearchPage:', {
-      oracle_id: card.oracle_id,
-      printing_id: card.printing_id,
-      id: card.id,
-      name: card.printed_name || card.name,
-    })
-
     // Usa oracle_id e printing_id se disponibili, altrimenti usa id come fallback
     if (card.oracle_id && card.printing_id) {
       const url = `/card/${card.oracle_id}?printing_id=${card.printing_id}`
-      console.log('🚀 Navigazione a:', url)
       navigate(url)
     } else if (card.oracle_id) {
       const url = `/card/${card.oracle_id}`
-      console.log('🚀 Navigazione a (fallback):', url)
       navigate(url)
     } else if (card.id) {
       // Fallback legacy: usa id come oracle_id se disponibile
       const url = `/card/${card.id}`
-      console.log('🚀 Navigazione a (legacy fallback):', url)
       navigate(url)
     }
   }

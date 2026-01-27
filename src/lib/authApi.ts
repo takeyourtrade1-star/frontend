@@ -4,7 +4,7 @@
  */
 
 import axios, { AxiosError, AxiosInstance, InternalAxiosRequestConfig } from 'axios'
-import { config } from './config'
+import { config, API_URLS } from './config'
 import type { ApiResponse } from '@/types'
 
 class AuthApiClient {
@@ -17,8 +17,10 @@ class AuthApiClient {
   }> = []
 
   constructor() {
+    const baseURL = API_URLS.auth
+    
     this.instance = axios.create({
-      baseURL: config.auth.baseURL,
+      baseURL, // Usa il microservizio Auth su AWS
       timeout: config.api.timeout,
       headers: {
         'Content-Type': 'application/json',
@@ -72,7 +74,6 @@ class AuthApiClient {
 
           if (!refreshToken) {
             // Se non c'è refresh token, fai il logout forzato
-            console.error('⚠️ No refresh token found. Logging out.')
             this.forceLogout()
             return Promise.reject(error)
           }
@@ -96,9 +97,9 @@ class AuthApiClient {
           this.isRefreshing = true
 
           try {
-            // Tenta di rinfrescare il token
+            // Tenta di rinfrescare il token usando il microservizio Auth
             const refreshResponse = await axios.post(
-              `${config.auth.baseURL}/auth/refresh`,
+              `${API_URLS.auth}/auth/refresh`,
               { refresh_token: refreshToken },
               {
                 headers: {
@@ -134,18 +135,12 @@ class AuthApiClient {
 
           } catch (refreshError) {
             // Refresh fallito! Logout forzato
-            console.error('⚠️ Refresh token failed. Logging out.', refreshError)
             this.processQueue(refreshError)
             this.forceLogout()
             return Promise.reject(refreshError)
           } finally {
             this.isRefreshing = false
           }
-        }
-
-        // Log errori per debug
-        if (error.response?.status === 500) {
-          console.error('🔴 Errore server:', error.response.data)
         }
 
         // Per tutti gli altri errori, rigetta la promise
@@ -215,7 +210,10 @@ class AuthApiClient {
    * POST request
    */
   async post<T = any>(url: string, data?: any): Promise<ApiResponse<T>> {
-    const response = await this.instance.post<ApiResponse<T>>(url, data)
+    // Normalizza l'URL per evitare slash doppi
+    const normalizedUrl = url.startsWith('/') ? url : `/${url}`
+    
+    const response = await this.instance.post<ApiResponse<T>>(normalizedUrl, data)
     return response.data
   }
 
@@ -224,6 +222,22 @@ class AuthApiClient {
    */
   async get<T = any>(url: string, params?: Record<string, any>): Promise<ApiResponse<T>> {
     const response = await this.instance.get<ApiResponse<T>>(url, { params })
+    return response.data
+  }
+
+  /**
+   * PATCH request
+   */
+  async patch<T = any>(url: string, data?: any): Promise<ApiResponse<T>> {
+    const response = await this.instance.patch<ApiResponse<T>>(url, data)
+    return response.data
+  }
+
+  /**
+   * PUT request
+   */
+  async put<T = any>(url: string, data?: any): Promise<ApiResponse<T>> {
+    const response = await this.instance.put<ApiResponse<T>>(url, data)
     return response.data
   }
 }

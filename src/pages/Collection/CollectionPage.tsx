@@ -63,7 +63,7 @@ export default function CollectionPage() {
         }
         await fetchCollection(pagination.page, pagination.per_page)
       } catch (err) {
-        console.error('Error loading collection:', err)
+        // Silently handle collection loading errors
       }
     }
     

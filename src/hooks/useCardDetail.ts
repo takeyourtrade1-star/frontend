@@ -3,7 +3,8 @@
  */
 
 import { useState, useEffect } from 'react'
-import { searchApiConfig } from '@/config/searchApi'
+import { AxiosError } from 'axios'
+import { searchApi } from '@/lib/searchApi'
 import type { CardDetailResponse, NavigationCardInfo, NavigationPrinting } from '@/types'
 
 interface UseCardDetailOptions {
@@ -30,25 +31,7 @@ export function useCardDetail(oracleId: string, options: UseCardDetailOptions = 
         setLoading(true)
         setError(null)
 
-        let url = searchApiConfig.endpoints.card(oracleId)
-        if (printingId) {
-          url += `?printing_id=${encodeURIComponent(printingId)}`
-        }
-
-        const response = await fetch(url, {
-          headers: {
-            'Accept': 'application/json',
-          },
-        })
-
-        if (!response.ok) {
-          if (response.status === 404) {
-            throw new Error('Carta non trovata')
-          }
-          throw new Error(`HTTP error! status: ${response.status}`)
-        }
-
-        const data: CardDetailResponse = await response.json()
+        const data = await searchApi.getCardDetail(oracleId, printingId || undefined)
 
         if (data.success && data.data) {
           setCardInfo(data.data.card_info)
@@ -79,8 +62,18 @@ export function useCardDetail(oracleId: string, options: UseCardDetailOptions = 
         } else {
           throw new Error(data.error || 'Failed to fetch card detail')
         }
-      } catch (err: any) {
-        setError(err.message || 'Error fetching card detail')
+      } catch (err: unknown) {
+        if (err instanceof AxiosError && err.response?.status === 404) {
+          setError('Carta non trovata')
+        } else if (err instanceof AxiosError) {
+          // Mostra errore più dettagliato per altri status
+          const errorMessage = err.response?.data?.error || err.response?.data?.message || err.message || 'Errore durante il caricamento della carta'
+          setError(errorMessage)
+        } else if (err instanceof Error) {
+          setError(err.message || 'Error fetching card detail')
+        } else {
+          setError('Error fetching card detail')
+        }
         setCardInfo(null)
         setSelectedPrinting(null)
         setPrintings([])
@@ -107,21 +100,10 @@ export function useCardDetail(oracleId: string, options: UseCardDetailOptions = 
 
     async function fetchFirstPrinting() {
       try {
-        const response = await fetch(
-          searchApiConfig.endpoints.cardPrintings(oracleId),
-          {
-            headers: {
-              'Accept': 'application/json',
-            },
-          }
-        )
-
-        if (response.ok) {
-          const data = await response.json()
-          if (data.success && data.data?.printings && data.data.printings.length > 0) {
-            setSelectedPrinting(data.data.printings[0])
-            setPrintings(data.data.printings)
-          }
+        const data = await searchApi.getCardPrintings(oracleId)
+        if (data.success && data.data?.printings && data.data.printings.length > 0) {
+          setSelectedPrinting(data.data.printings[0])
+          setPrintings(data.data.printings)
         }
       } catch (err) {
         // Silently fail - già abbiamo gestito l'errore principale

@@ -21,7 +21,7 @@ export default function MainLayout() {
       {/* Activity Status Banner */}
       <ActivityStatusBanner />
       
-      <main className="relative flex-1 z-10">
+      <main className="relative flex-1 z-10 pb-20 md:pb-0">
         <Outlet />
       </main>
       

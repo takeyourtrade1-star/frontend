@@ -88,6 +88,7 @@ export interface Printing {
   set_name: string
   collector_number: string
   image_uri_small: string | null
+  image_uri_normal?: string | null // Immagine classica per preview
   type?: 'card' // Campo opzionale per distinguere il tipo
 }
 

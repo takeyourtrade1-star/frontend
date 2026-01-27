@@ -30,7 +30,7 @@ export default function MessagesTab() {
       setTotalPages(response.last_page)
       setTotalItems(response.total)
     } catch (error) {
-      console.error('Error loading messages:', error)
+      // Silently handle loading errors
     } finally {
       setIsLoading(false)
     }
@@ -55,7 +55,6 @@ export default function MessagesTab() {
 
   const handleMessageClick = (message: Message) => {
     // TODO: Navigate to message detail
-    console.log('Opening message:', message)
   }
 
   return (

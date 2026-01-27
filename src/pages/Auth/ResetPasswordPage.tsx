@@ -109,13 +109,6 @@ export default function ResetPasswordPage() {
     }
 
     try {
-      console.log('Attempting password reset with:', {
-        email: email,
-        token: token?.substring(0, 10) + '...',
-        passwordLength: password.length,
-        passwordConfirmationLength: passwordConfirmation.length
-      })
-
       await resetPassword({
         email: email!,
         password,
@@ -129,12 +122,10 @@ export default function ResetPasswordPage() {
         const storeError = useAuthStore.getState().error
         
         if (storeError) {
-          console.error('Reset password failed with error:', storeError)
           // Non mostrare successo se c'è un errore
           return
         }
         
-        console.log('Password reset successful')
         setIsResetSuccess(true)
         
         // Redirect dopo 3 secondi
@@ -144,19 +135,7 @@ export default function ResetPasswordPage() {
       }, 100)
       
     } catch (error: any) {
-      console.error('Reset password error caught:', error)
-      
-      // L'errore è già gestito nello store, ma assicuriamoci che venga mostrato
-      setTimeout(() => {
-        const storeError = useAuthStore.getState().error
-        if (storeError) {
-          console.error('Reset password failed with store error:', storeError)
-          // L'errore verrà mostrato automaticamente tramite lo stato error dello store
-        } else {
-          // Se non c'è errore nello store ma c'è un'eccezione, potrebbe essere un problema di rete
-          console.error('Reset password failed but no error in store')
-        }
-      }, 100)
+      // L'errore è già gestito nello store
     }
   }
 

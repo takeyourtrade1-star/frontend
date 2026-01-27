@@ -33,7 +33,7 @@ export default function HeaderAuthForm({ onOpenLoginSidebar }: HeaderAuthFormPro
         navigate(from, { replace: true })
       }
     } catch (error) {
-      console.error('Login error:', error)
+      // Silently handle login errors
     }
   }
 
@@ -120,32 +120,7 @@ export default function HeaderAuthForm({ onOpenLoginSidebar }: HeaderAuthFormPro
         </Link>
       </form>
 
-      {/* Mobile - Pulsanti che aprono sidebar/redirect */}
-      <div className="flex lg:hidden items-center gap-2">
-        <button
-          onClick={onOpenLoginSidebar}
-          className="flex items-center gap-2 px-4 py-2 min-h-[40px]
-                   bg-white border-2 border-orange-500 text-orange-500 rounded-lg
-                   font-semibold text-sm
-                   hover:bg-orange-50
-                   transition-all duration-200"
-        >
-          <LogIn className="w-4 h-4" />
-          <span>LOG IN</span>
-        </button>
-        
-        <Link
-          to="/register"
-          className="flex items-center gap-2 px-4 py-2 min-h-[40px]
-                   bg-orange-500 text-white rounded-lg
-                   font-semibold text-sm
-                   hover:bg-orange-600
-                   transition-all duration-200"
-        >
-          <UserPlus className="w-4 h-4" />
-          <span>REGISTRATI</span>
-        </Link>
-      </div>
+      {/* Mobile - Pulsanti rimossi, accesso tramite hamburger menu */}
     </>
   )
 }

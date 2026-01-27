@@ -5,7 +5,9 @@ import { resolve } from 'path'
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
   // Carica le variabili d'ambiente
-  const env = loadEnv(mode, '.', '')
+  // Vite carica automaticamente .env, .env.local, .env.[mode], .env.[mode].local
+  // Il parametro '.' indica la directory corrente come root
+  const env = loadEnv(mode, process.cwd(), '')
   
   return {
     plugins: [react()],
@@ -42,13 +44,9 @@ export default defineConfig(({ mode }) => {
         },
       },
     },
-    // Definisci le variabili d'ambiente esplicitamente
-    define: {
-      'import.meta.env.VITE_API_BASE': JSON.stringify(env.VITE_API_BASE || '/api'),
-      'import.meta.env.VITE_APP_NAME': JSON.stringify(env.VITE_APP_NAME || 'TakeYourTrade'),
-      'import.meta.env.VITE_APP_VERSION': JSON.stringify(env.VITE_APP_VERSION || '1.0.0'),
-      'import.meta.env.VITE_DEV_MODE': JSON.stringify(env.VITE_DEV_MODE || 'true'),
-    },
+    // NOTA: Vite carica automaticamente le variabili VITE_* da .env.production durante la build
+    // Il blocco define è opzionale e serve solo per override espliciti o fallback
+    // Rimuoviamo il define per evitare conflitti - Vite gestisce già tutto automaticamente
   }
 })
 

@@ -21,7 +21,7 @@ import {
 import { formatPrice } from '@/lib/utils'
 import EmailVerificationBanner from '@/components/auth/EmailVerificationBanner'
 import CompleteProfileBanner from '@/components/auth/CompleteProfileBanner'
-import { api } from '@/lib/api'
+import { authApi } from '@/lib/authApi'
 
 export default function DashboardPage() {
   const { user, isAuthenticated } = useAuthStore()
@@ -43,33 +43,23 @@ export default function DashboardPage() {
       setApiError(null)
       
       try {
-        // La risposta API ha questa struttura: { success: true, data: { language_pref: "it" } }
-        // api.get() restituisce ApiResponse<T> dove T è il tipo di data
-        // Quindi response è { success: boolean, data?: { language_pref: string } }
-        const response = await api.get<{ language_pref: string }>('/profile/settings')
-        console.log('🔍 DEBUG - Risposta API completa:', response)
-        console.log('🔍 DEBUG - response.success:', response.success)
-        console.log('🔍 DEBUG - response.data:', response.data)
-        console.log('🔍 DEBUG - response.data?.language_pref:', response.data?.language_pref)
+        // La risposta API ha questa struttura: { success: true, data: { language: "it", language_name: "Italiano", ... } }
+        // authApi.get() restituisce ApiResponse<T> dove T è il tipo di data
+        // Quindi response è { success: boolean, data?: { language: string, language_name: string, ... } }
+        // Usa authApi per puntare al microservizio Auth su AWS
+        const response = await authApi.get<{ language: string; language_name: string; language_code: string; locale: string; is_default: boolean }>('/profile/language')
         
-        // ⚠️ IMPORTANTE: Accedi a response.data.language_pref (non response.data.data.language_pref)
+        // Accedi a response.data.language (non response.data.data.language)
         let userLanguage: string | null = null
         
         if (response.success && response.data) {
-          userLanguage = response.data.language_pref || null
+          userLanguage = response.data.language || null
         }
         
         setApiLanguage(userLanguage)
-        console.log('🔍 DEBUG - Lingua dall\'API estratta:', userLanguage)
       } catch (error: any) {
         const errorMessage = error.response?.data?.message || error.message || 'Errore sconosciuto'
         setApiError(errorMessage)
-        console.error('❌ DEBUG - Errore nel caricamento lingua dall\'API:', error)
-        console.error('❌ DEBUG - Dettagli errore:', {
-          message: error.message,
-          response: error.response?.data,
-          status: error.response?.status
-        })
       } finally {
         setIsLoadingApi(false)
       }

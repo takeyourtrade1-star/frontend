@@ -60,11 +60,6 @@ export default function AccountProfilePage() {
         const profileDataFromApi = profile?.profile || {}
         const userDataFromApi = profile?.user || {}
         
-        // Log per debug
-        console.log('📊 Risposta completa API /api/profile:', profile)
-        console.log('📊 Dati profilo da API:', profileDataFromApi)
-        console.log('📊 Dati user da API:', userDataFromApi)
-        
         // Formatta la data di nascita
         const formatBirthDate = (dateStr: string | null | undefined) => {
           if (!dateStr) return ''
@@ -142,7 +137,7 @@ export default function AccountProfilePage() {
           birthPlace: profileDataFromApi.city || '',
         })
       } catch (error) {
-        console.error('Error loading profile:', error)
+        // Silently handle profile loading errors
       } finally {
         setIsLoading(false)
       }
@@ -215,7 +210,6 @@ export default function AccountProfilePage() {
       
       setIsEditingStatus(false)
     } catch (error: any) {
-      console.error('Error updating activity status:', error)
       alert(error.message || 'Errore durante l\'aggiornamento dello stato attività')
     } finally {
       setIsUpdatingStatus(false)
@@ -291,7 +285,6 @@ export default function AccountProfilePage() {
         }, 2000)
       }
     } catch (error: any) {
-      console.error('Error updating password:', error)
       setPasswordErrors({ general: error.message || 'Errore durante l\'aggiornamento della password' })
     } finally {
       setIsUpdatingPassword(false)

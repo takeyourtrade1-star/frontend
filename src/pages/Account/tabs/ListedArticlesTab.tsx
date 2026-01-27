@@ -55,7 +55,7 @@ export default function ListedArticlesTab() {
       setTotalPages(response.last_page)
       setTotalItems(response.total)
     } catch (error) {
-      console.error('Error loading articles:', error)
+      // Silently handle loading errors
     } finally {
       setIsLoading(false)
     }

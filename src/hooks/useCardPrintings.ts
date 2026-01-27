@@ -3,7 +3,8 @@
  */
 
 import { useState, useEffect } from 'react'
-import { searchApiConfig } from '@/config/searchApi'
+import { AxiosError } from 'axios'
+import { searchApi } from '@/lib/searchApi'
 import type { CardPrintingsResponse, NavigationPrinting } from '@/types'
 
 export function useCardPrintings(oracleId: string) {
@@ -24,23 +25,7 @@ export function useCardPrintings(oracleId: string) {
         setLoading(true)
         setError(null)
 
-        const response = await fetch(
-          searchApiConfig.endpoints.cardPrintings(oracleId),
-          {
-            headers: {
-              'Accept': 'application/json',
-            },
-          }
-        )
-
-        if (!response.ok) {
-          if (response.status === 404) {
-            throw new Error('Carta non trovata')
-          }
-          throw new Error(`HTTP error! status: ${response.status}`)
-        }
-
-        const data: CardPrintingsResponse = await response.json()
+        const data = await searchApi.getCardPrintings(oracleId)
 
         if (data.success && data.data) {
           setCardName(data.data.card_name)
@@ -49,8 +34,14 @@ export function useCardPrintings(oracleId: string) {
         } else {
           throw new Error(data.error || 'Failed to fetch printings')
         }
-      } catch (err: any) {
-        setError(err.message || 'Error fetching printings')
+      } catch (err: unknown) {
+        if (err instanceof AxiosError && err.response?.status === 404) {
+          setError('Carta non trovata')
+        } else if (err instanceof Error) {
+          setError(err.message || 'Error fetching printings')
+        } else {
+          setError('Error fetching printings')
+        }
         setCardName(null)
         setPrintings([])
       } finally {

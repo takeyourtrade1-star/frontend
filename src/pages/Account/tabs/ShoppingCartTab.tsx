@@ -23,7 +23,7 @@ export default function ShoppingCartTab() {
       const cartItems = await fetchCartItems()
       setItems(cartItems)
     } catch (error) {
-      console.error('Error loading cart:', error)
+      // Silently handle loading errors
     } finally {
       setIsLoading(false)
     }

@@ -4,7 +4,7 @@
  */
 
 import axios, { AxiosError, AxiosInstance, InternalAxiosRequestConfig } from 'axios'
-import { config } from './config'
+import { config, API_URLS } from './config'
 import type { ApiResponse } from '@/types'
 
 class ApiClient {
@@ -18,7 +18,7 @@ class ApiClient {
 
   constructor() {
     this.instance = axios.create({
-      baseURL: config.api.baseURL,
+      baseURL: API_URLS.legacy, // Usa le API legacy (vecchio server / altri microservizi)
       timeout: config.api.timeout,
       headers: {
         'Content-Type': 'application/json',
@@ -64,7 +64,6 @@ class ApiClient {
 
           if (!refreshToken) {
             // Se non c'è refresh token, fai il logout forzato
-            console.error('⚠️ No refresh token found. Logging out.')
             this.forceLogout()
             return Promise.reject(error)
           }
@@ -88,9 +87,10 @@ class ApiClient {
           this.isRefreshing = true
 
           try {
-            // Tenta di rinfrescare il token
+            // Tenta di rinfrescare il token usando il microservizio Auth
+            // Nota: Anche se questo client è per le API legacy, il refresh deve usare il microservizio Auth
             const refreshResponse = await axios.post(
-              `${config.auth.baseURL}/auth/refresh`,
+              `${API_URLS.auth}/auth/refresh`,
               { refresh_token: refreshToken },
               {
                 headers: {
@@ -126,18 +126,12 @@ class ApiClient {
 
           } catch (refreshError) {
             // Refresh fallito! Logout forzato
-            console.error('⚠️ Refresh token failed. Logging out.', refreshError)
             this.processQueue(refreshError)
             this.forceLogout()
             return Promise.reject(refreshError)
           } finally {
             this.isRefreshing = false
           }
-        }
-
-        // Log errori per debug
-        if (error.response?.status === 500) {
-          console.error('🔴 Errore server:', error.response.data)
         }
 
         // Per tutti gli altri errori, rigetta la promise
@@ -251,7 +245,6 @@ class ApiClient {
       const response = await this.instance.get('/health');
       return response.data;
     } catch (error: any) {
-      console.error('API Connection failed:', error.message);
       throw error;
     }
   }

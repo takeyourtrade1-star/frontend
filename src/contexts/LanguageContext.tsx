@@ -7,7 +7,7 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react'
 import Fuse from 'fuse.js'
 import { useAuthStore } from '@/store/authStore'
-import { api } from '@/lib/api'
+import { authApi } from '@/lib/authApi'
 
 // Nuova struttura dati: array di oggetti con id, name (inglese), preferred (tradotto)
 export interface TranslationItem {
@@ -36,6 +36,9 @@ const LanguageContext = createContext<LanguageContextValue | undefined>(undefine
 // Lingue disponibili
 const AVAILABLE_LANGS = ['en', 'it', 'fr', 'de', 'es', 'pt']
 
+// Chiave localStorage per la lingua preferita
+const LANGUAGE_STORAGE_KEY = 'tyt_preferred_language'
+
 // Mappa nomi lingua visualizzati
 const LANGUAGE_NAMES: Record<string, string> = {
   en: 'English',
@@ -51,7 +54,20 @@ interface LanguageProviderProps {
 }
 
 export function LanguageProvider({ children }: LanguageProviderProps) {
-  const [selectedLang, setSelectedLangState] = useState<string>('en')
+  // Carica la lingua da localStorage come fallback iniziale
+  const getInitialLanguage = (): string => {
+    try {
+      const savedLang = localStorage.getItem(LANGUAGE_STORAGE_KEY)
+      if (savedLang && AVAILABLE_LANGS.includes(savedLang)) {
+        return savedLang
+      }
+    } catch (error) {
+      // Silently handle localStorage errors
+    }
+    return 'en'
+  }
+
+  const [selectedLang, setSelectedLangState] = useState<string>(getInitialLanguage())
   const [translationData, setTranslationData] = useState<TranslationItem[]>([])
   const [idToPreferredName, setIdToPreferredName] = useState<IdToPreferredNameMap>({})
   const [fuseDictionary, setFuseDictionary] = useState<Fuse<TranslationItem> | null>(null)
@@ -94,7 +110,6 @@ export function LanguageProvider({ children }: LanguageProviderProps) {
               const cacheMaxAge = 7 * 24 * 60 * 60 * 1000 // 7 giorni
 
               if (cacheAge < cacheMaxAge) {
-                console.log(`✅ Dizionario ${lang} caricato da IndexedDB`)
                 resolve(cached.data)
                 return
               }
@@ -116,7 +131,6 @@ export function LanguageProvider({ children }: LanguageProviderProps) {
         }
       })
     } catch (error) {
-      console.warn('IndexedDB non disponibile, uso fetch diretto:', error)
       return fetchDictionary(lang)
     }
   }, [])
@@ -157,7 +171,7 @@ export function LanguageProvider({ children }: LanguageProviderProps) {
         }
       }
     } catch (error) {
-      console.warn('Errore salvataggio IndexedDB:', error)
+      // Silently handle IndexedDB save errors
     }
 
     return data
@@ -171,10 +185,14 @@ export function LanguageProvider({ children }: LanguageProviderProps) {
     }
 
     const loadUserLanguagePreference = async () => {
-      // Se l'utente non è autenticato, non fare nulla (non chiamare API e non cambiare isInitialized)
+      // Se l'utente non è autenticato, usa la lingua da localStorage
       if (!isAuthenticated) {
         // Marca come inizializzato solo la prima volta per utenti non autenticati
         if (!unauthenticatedInitializedRef.current) {
+          const savedLang = localStorage.getItem(LANGUAGE_STORAGE_KEY)
+          if (savedLang && AVAILABLE_LANGS.includes(savedLang)) {
+            setSelectedLangState(savedLang)
+          }
           unauthenticatedInitializedRef.current = true
         }
         return
@@ -189,25 +207,42 @@ export function LanguageProvider({ children }: LanguageProviderProps) {
       isLoadingRef.current = true
       
       try {
-        // La risposta API ha questa struttura: { success: true, data: { language_pref: "it" } }
-        // api.get() restituisce ApiResponse<T> dove T è il tipo di data
-        // Quindi response è { success: boolean, data?: { language_pref: string } }
-        const response = await api.get<{ language_pref: string }>('/profile/settings')
+        // La risposta API ha questa struttura: { success: true, data: { language: "it", language_name: "Italiano", ... } }
+        // authApi.get() restituisce ApiResponse<T> dove T è il tipo di data
+        // Quindi response è { success: boolean, data?: { language: string, language_name: string, ... } }
+        // Usa authApi per puntare al microservizio Auth su AWS
+        const response = await authApi.get<{ language: string; language_name: string; language_code: string; locale: string; is_default: boolean }>('/profile/language')
         
-        // ⚠️ IMPORTANTE: Accedi a response.data.language_pref (non response.data.data.language_pref)
+        // Accedi a response.data.language (non response.data.data.language)
         let userLanguage = 'en'
         
         if (response.success && response.data) {
-          const langPref = response.data.language_pref
-          if (langPref && AVAILABLE_LANGS.includes(langPref)) {
-            userLanguage = langPref
+          const lang = response.data.language
+          if (lang && AVAILABLE_LANGS.includes(lang)) {
+            userLanguage = lang
           }
+        }
+        
+        // Salva la lingua in localStorage come fallback
+        try {
+          localStorage.setItem(LANGUAGE_STORAGE_KEY, userLanguage)
+        } catch (error) {
+          // Silently handle localStorage errors
         }
         
         setSelectedLangState(userLanguage)
       } catch (error: any) {
-        // In caso di errore, mantieni la lingua di default (en)
-        setSelectedLangState('en')
+        // In caso di errore, prova a usare la lingua da localStorage
+        try {
+          const savedLang = localStorage.getItem(LANGUAGE_STORAGE_KEY)
+          if (savedLang && AVAILABLE_LANGS.includes(savedLang)) {
+            setSelectedLangState(savedLang)
+          } else {
+            setSelectedLangState('en')
+          }
+        } catch (storageError) {
+          setSelectedLangState('en')
+        }
       } finally {
         isLoadingRef.current = false
         setIsInitialized(true)
@@ -266,11 +301,8 @@ export function LanguageProvider({ children }: LanguageProviderProps) {
         setFuseDictionary(fuse)
         fuseRef.current = fuse
         setIsLangLoading(false)
-        
-        console.log(`✅ Dizionario ${selectedLang} caricato: ${data.length} traduzioni`)
       })
       .catch((error) => {
-        console.error(`❌ Errore caricamento dizionario ${selectedLang}:`, error)
         setIsLangLoading(false)
         // Fallback: svuota e usa inglese
         setTranslationData([])
@@ -281,38 +313,50 @@ export function LanguageProvider({ children }: LanguageProviderProps) {
   }, [selectedLang, loadDictionary])
 
   const setSelectedLang = useCallback(async (lang: string) => {
-    console.log('🔍 LanguageContext - setSelectedLang chiamato', { lang, isAuthenticated, currentLang: selectedLang })
-    
     // Valida che la lingua sia tra quelle disponibili
     if (!AVAILABLE_LANGS.includes(lang)) {
-      console.warn(`⚠️ LanguageContext - Lingua non valida: ${lang}`)
       return
     }
 
     // Aggiorna lo stato locale immediatamente per una UX fluida
-    console.log(`🔄 LanguageContext - Aggiornamento lingua locale a: ${lang}`)
     setSelectedLangState(lang)
+
+    // Salva sempre in localStorage come fallback
+    try {
+      localStorage.setItem(LANGUAGE_STORAGE_KEY, lang)
+    } catch (error) {
+      // Silently handle localStorage errors
+    }
 
     // Se l'utente è autenticato, aggiorna anche la preferenza sul backend
     if (isAuthenticated) {
-      console.log(`🔍 LanguageContext - Chiamata API PATCH /profile/settings/language con language_pref: ${lang}`)
       try {
-        // ⚠️ IMPORTANTE: L'API si aspetta { language_pref: "it" } non { language: "it" }
-        const response = await api.patch('/profile/settings/language', { language_pref: lang })
-        console.log(`✅ LanguageContext - Lingua preferita aggiornata sul backend: ${lang}`, response)
-        console.log('🔍 LanguageContext - Risposta update:', response)
+        // L'API si aspetta { language: "it" } secondo la documentazione AWS
+        const response = await authApi.put('/profile/language', { language: lang })
+        
+        // Verifica che la risposta contenga la lingua aggiornata
+        if (response.success) {
+          // Ricarica la lingua dall'API per verificare che sia stata salvata correttamente
+          try {
+            const verifyResponse = await authApi.get<{ language: string; language_name: string; language_code: string; locale: string; is_default: boolean }>('/profile/language')
+            if (verifyResponse.success && verifyResponse.data) {
+              const savedLang = verifyResponse.data.language
+              if (savedLang && AVAILABLE_LANGS.includes(savedLang)) {
+                // Aggiorna localStorage con la lingua confermata dal backend
+                localStorage.setItem(LANGUAGE_STORAGE_KEY, savedLang)
+                // Se la lingua salvata è diversa da quella richiesta, aggiorna lo stato
+                if (savedLang !== lang) {
+                  setSelectedLangState(savedLang)
+                }
+              }
+            }
+          } catch (verifyError) {
+            // Silently handle verification errors
+          }
+        }
       } catch (error: any) {
-        console.error('❌ LanguageContext - Errore nell\'aggiornamento della lingua preferita:', error)
-        console.error('❌ LanguageContext - Dettagli errore:', {
-          message: error.message,
-          response: error.response?.data,
-          status: error.response?.status
-        })
-        // Non facciamo rollback dello stato locale, l'utente ha già visto il cambio
-        // ma logghiamo l'errore per debug
+        // Silently handle API errors - language remains in localStorage as fallback
       }
-    } else {
-      console.log('🔍 LanguageContext - Utente non autenticato, skip API call')
     }
   }, [isAuthenticated, selectedLang])
 
