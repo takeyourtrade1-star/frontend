@@ -3,7 +3,6 @@
  * Dashboard principale per utenti autenticati
  */
 
-import { useState, useEffect } from 'react'
 import { useAuthStore } from '@/store/authStore'
 import { useLanguage } from '@/contexts/LanguageContext'
 import { 
@@ -21,52 +20,12 @@ import {
 import { formatPrice } from '@/lib/utils'
 import EmailVerificationBanner from '@/components/auth/EmailVerificationBanner'
 import CompleteProfileBanner from '@/components/auth/CompleteProfileBanner'
-import { authApi } from '@/lib/authApi'
 
 export default function DashboardPage() {
   const { user, isAuthenticated } = useAuthStore()
   const { selectedLang, isLangLoading } = useLanguage()
-  const [apiLanguage, setApiLanguage] = useState<string | null>(null)
-  const [apiError, setApiError] = useState<string | null>(null)
-  const [isLoadingApi, setIsLoadingApi] = useState(false)
-
-  // Carica la lingua preferita dall'API per debug
-  useEffect(() => {
-    const fetchLanguagePreference = async () => {
-      if (!isAuthenticated) {
-        setApiLanguage(null)
-        setApiError(null)
-        return
-      }
-
-      setIsLoadingApi(true)
-      setApiError(null)
-      
-      try {
-        // La risposta API ha questa struttura: { success: true, data: { language: "it", language_name: "Italiano", ... } }
-        // authApi.get() restituisce ApiResponse<T> dove T è il tipo di data
-        // Quindi response è { success: boolean, data?: { language: string, language_name: string, ... } }
-        // Usa authApi per puntare al microservizio Auth su AWS
-        const response = await authApi.get<{ language: string; language_name: string; language_code: string; locale: string; is_default: boolean }>('/profile/language')
-        
-        // Accedi a response.data.language (non response.data.data.language)
-        let userLanguage: string | null = null
-        
-        if (response.success && response.data) {
-          userLanguage = response.data.language || null
-        }
-        
-        setApiLanguage(userLanguage)
-      } catch (error: any) {
-        const errorMessage = error.response?.data?.message || error.message || 'Errore sconosciuto'
-        setApiError(errorMessage)
-      } finally {
-        setIsLoadingApi(false)
-      }
-    }
-
-    fetchLanguagePreference()
-  }, [isAuthenticated])
+  // Lingua preferita da /api/auth/me (user.preferences.language) — backend non espone GET /profile/language
+  const languageFromMe = user?.preferences?.language ?? null
 
   const stats = [
     {
@@ -139,17 +98,10 @@ export default function DashboardPage() {
               )}
             </div>
             <div className="flex items-center gap-2">
-              <span className="font-medium text-gray-700">Lingua dall'API:</span>
-              {isLoadingApi ? (
-                <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
-              ) : apiError ? (
-                <span className="flex items-center gap-1 text-red-600">
-                  <AlertCircle className="w-4 h-4" />
-                  Errore: {apiError}
-                </span>
-              ) : apiLanguage ? (
+              <span className="font-medium text-gray-700">Lingua (da /me):</span>
+              {languageFromMe ? (
                 <span className="px-2 py-1 bg-white rounded border border-gray-300 font-mono text-green-600">
-                  {apiLanguage}
+                  {languageFromMe}
                 </span>
               ) : (
                 <span className="text-gray-500 italic">Non disponibile</span>
@@ -157,16 +109,18 @@ export default function DashboardPage() {
             </div>
             <div className="flex items-center gap-2">
               <span className="font-medium text-gray-700">Match:</span>
-              {selectedLang === apiLanguage ? (
-                <span className="flex items-center gap-1 text-green-600">
-                  <CheckCircle className="w-4 h-4" />
-                  Le lingue corrispondono ✓
-                </span>
-              ) : apiLanguage ? (
-                <span className="flex items-center gap-1 text-orange-600">
-                  <AlertCircle className="w-4 h-4" />
-                  Le lingue NON corrispondono (Context: {selectedLang} vs API: {apiLanguage})
-                </span>
+              {languageFromMe ? (
+                selectedLang === languageFromMe ? (
+                  <span className="flex items-center gap-1 text-green-600">
+                    <CheckCircle className="w-4 h-4" />
+                    Le lingue corrispondono ✓
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-1 text-orange-600">
+                    <AlertCircle className="w-4 h-4" />
+                    Le lingue NON corrispondono (Context: {selectedLang} vs /me: {languageFromMe})
+                  </span>
+                )
               ) : (
                 <span className="text-gray-500 italic">Non confrontabile</span>
               )}

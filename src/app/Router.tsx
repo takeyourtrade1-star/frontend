@@ -22,6 +22,7 @@ import SuccessPage from '@/pages/SuccessPage'
 import ErrorPage from '@/pages/ErrorPage'
 
 // Pages - Protected
+import OnboardingPage from '@/pages/Onboarding/OnboardingPage'
 import DashboardPage from '@/pages/Dashboard/DashboardPage'
 import CollectionPage from '@/pages/Collection/CollectionPage'
 import CardsSearchPage from '@/pages/Cards/CardsSearchPage'
@@ -84,11 +85,21 @@ export default function Router() {
           <Route path="/sets" element={<SetListPage />} />
           <Route path="/set/:setCode" element={<SetDetailPage />} />
           
-          {/* Protected Routes */}
+          {/* Onboarding - Required for first-time users (redirect to dashboard if already completed) */}
+          <Route
+            path="/onboarding"
+            element={
+              <ProtectedRoute requireOnboardingCompleted={false}>
+                <OnboardingPage />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Protected Routes - Redirect to onboarding if not completed */}
           <Route
             path="/dashboard"
             element={
-              <ProtectedRoute>
+              <ProtectedRoute requireOnboardingCompleted>
                 <DashboardPage />
               </ProtectedRoute>
             }

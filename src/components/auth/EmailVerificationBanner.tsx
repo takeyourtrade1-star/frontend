@@ -16,9 +16,13 @@ export default function EmailVerificationBanner() {
   const [sendSuccess, setSendSuccess] = useState(false)
 
   // Verifica se l'email è verificata
-  const isEmailVerified = user?.verified === true && user?.email_verified_at !== null
+  // Controlla multiple condizioni per compatibilità con diversi backend
+  const isEmailVerified = 
+    (user?.email_verified_at !== null && user?.email_verified_at !== undefined) ||
+    (user?.verified === true && user?.email_verified_at !== null) ||
+    (user?.account_status && user?.account_status !== 'pending_verification' && user?.email_verified_at)
 
-  // Se l'email è già verificata, non mostrare il banner
+  // Se l'email è già verificata o non c'è utente, non mostrare il banner
   if (isEmailVerified || !user) {
     return null
   }

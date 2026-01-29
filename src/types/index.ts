@@ -2,7 +2,7 @@
 // NOTE: Python FastAPI backend returns snake_case fields (e.g., account_type, email_verified_at, phone_prefix)
 // All field names match the backend response format
 export interface User {
-  id: number
+  id: number | string // Backend Python può usare UUID (string) o integer
   username: string
   email: string
   account_type: 'personal' | 'business' | 'private' // Backend uses 'private' for business accounts
@@ -13,19 +13,29 @@ export interface User {
   created_at?: string
   updated_at?: string
   balance?: number
-  // Personal fields
-  nome?: string
-  cognome?: string
+  // Personal fields - Backend Python restituisce first_name e last_name
+  first_name?: string // Campo principale dal backend Python
+  last_name?: string // Campo principale dal backend Python
+  nome?: string // Variante legacy (mantenuta per retrocompatibilità)
+  cognome?: string // Variante legacy (mantenuta per retrocompatibilità)
   // Business fields
   ragione_sociale?: string
   piva?: string
   // Contact fields
   country?: string
   phone_prefix?: string
-  telefono?: string
+  phone?: string // Backend Python usa 'phone'
+  telefono?: string // Variante legacy (mantenuta per retrocompatibilità)
   // MFA fields (from backend)
   mfa_enabled?: boolean
   account_status?: string
+
+  // User preferences (onboarding: theme, language)
+  preferences?: {
+    theme: 'light' | 'dark' | 'system'
+    language: string
+    is_onboarding_completed: boolean
+  }
 }
 
 // Auth Types
@@ -44,6 +54,11 @@ export interface RegisterData {
   username: string
   password: string
   password_confirmation: string
+  // Consensi obbligatori (richiesti dal backend per compliance legale)
+  termsAccepted: boolean
+  privacyAccepted: boolean
+  cancellationAccepted: boolean
+  adultConfirmed: boolean
   // Personal fields - AWS accetta varianti: nome/firstName per first_name
   first_name?: string // Campo principale per AWS
   last_name?: string // Campo principale per AWS

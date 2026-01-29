@@ -4,9 +4,8 @@
  */
 
 import { useState, useEffect } from 'react'
-import { useRegisterStore } from '@/store/registerStore'
-import { useAsyncValidation, validators } from '@/hooks/useAsyncValidation'
-import { Phone, Mail, CheckCircle, AlertCircle } from 'lucide-react'
+import { useRegisterStore, EMAIL_REGEX } from '@/store/registerStore'
+import { Phone, Mail } from 'lucide-react'
 
 export default function StepContacts() {
   const { 
@@ -21,12 +20,8 @@ export default function StepContacts() {
   const [phoneValue, setPhoneValue] = useState(phone || '')
   const [emailValue, setEmailValue] = useState(email || '')
   
-  // Use async validation hook for email
-  const emailValidation = useAsyncValidation(emailValue, {
-    validator: validators.email.async,
-    immediateValidation: validators.email.immediate,
-    debounceMs: 400
-  })
+  // Validazione formato email (solo sintassi, senza verifica disponibilità)
+  const isEmailFormatValid = emailValue ? EMAIL_REGEX.test(emailValue) : true
 
   // Update form state when store changes
   useEffect(() => {
@@ -131,50 +126,24 @@ export default function StepContacts() {
                 onChange={(e) => handleEmailChange(e.target.value)}
                 onBlur={handleEmailBlur}
                 className={`
-                  w-full pl-10 pr-10 py-3 border rounded-xl shadow-sm transition-all duration-200
+                  w-full pl-10 pr-4 py-3 border rounded-xl shadow-sm transition-all duration-200
                   focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500
                   ${hasEmailError
                     ? 'border-red-300 focus:ring-red-500 focus:border-red-500'
-                    : emailValidation.isValid
-                      ? 'border-green-300 focus:ring-green-500 focus:border-green-500'
+                    : emailValue && !isEmailFormatValid
+                      ? 'border-red-300 focus:ring-red-500 focus:border-red-500'
                       : 'border-gray-300 hover:border-gray-400'
                   }
                 `}
                 placeholder="mario.rossi@example.com"
                 autoComplete="email"
               />
-              
-              {/* Email validation icon */}
-              <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
-                {emailValidation.isChecking ? (
-                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-orange-500 border-t-transparent"></div>
-                ) : emailValidation.isValid ? (
-                  <CheckCircle className="w-4 h-4 text-green-500" />
-                ) : emailValue && !emailValidation.isValid && !emailValidation.isChecking ? (
-                  <AlertCircle className="w-4 h-4 text-red-500" />
-                ) : null}
-              </div>
             </div>
             
-            {/* Email validation message */}
-            {emailValue && emailValidation.message && (
-              <div className={`
-                text-sm mt-1 flex items-center space-x-1
-                ${emailValidation.isValid 
-                  ? 'text-green-600' 
-                  : emailValidation.isChecking
-                    ? 'text-orange-600'
-                    : 'text-red-600'
-                }
-              `} role="alert">
-                {emailValidation.isChecking ? (
-                  <div className="animate-spin rounded-full h-3 w-3 border border-orange-500 border-t-transparent"></div>
-                ) : emailValidation.isValid ? (
-                  <CheckCircle className="w-3 h-3" />
-                ) : (
-                  <AlertCircle className="w-3 h-3" />
-                )}
-                <span>{emailValidation.message}</span>
+            {/* Email format validation message (solo formato, non disponibilità) */}
+            {emailValue && !isEmailFormatValid && !hasEmailError && (
+              <div className="text-red-600 text-sm mt-1 flex items-center space-x-1" role="alert">
+                <span>Formato email non valido</span>
               </div>
             )}
             

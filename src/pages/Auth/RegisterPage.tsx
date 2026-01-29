@@ -36,10 +36,10 @@ export default function RegisterPage() {
     username,
     password,
     password_confirmation,
-    // termsAccepted,
-    // privacyAccepted,
-    // cancellationAccepted,
-    // adultConfirmed,
+    termsAccepted,
+    privacyAccepted,
+    cancellationAccepted,
+    adultConfirmed,
     next,
     prev,
     reset,
@@ -106,6 +106,13 @@ export default function RegisterPage() {
       username: username!,
       password: password!,
       password_confirmation: password_confirmation!,
+      
+      // ✅ CONSENSI OBBLIGATORI (richiesti dal backend per compliance legale)
+      termsAccepted: storeState.termsAccepted || termsAccepted,
+      privacyAccepted: storeState.privacyAccepted || privacyAccepted,
+      cancellationAccepted: storeState.cancellationAccepted || cancellationAccepted,
+      adultConfirmed: storeState.adultConfirmed || adultConfirmed,
+      
       // Add personal or business fields based on account type
       // La documentazione AWS accetta anche varianti: nome/firstName per first_name
       ...(account_type === 'personal' 
@@ -178,17 +185,44 @@ export default function RegisterPage() {
       
       // Handle different error types
       if (error.response?.status === 422) {
-        // Validation errors - map to form fields
-        const errors = error.response.data.errors || {}
-        Object.keys(errors).forEach(field => {
-          setError(field, errors[field][0])
-        })
+        // Validation errors - supporta sia formato Laravel/Lumen che FastAPI
+        const errorData = error.response.data
+        
+        // FastAPI format: { detail: [{ loc: ["body", "email"], msg: "...", type: "..." }] }
+        if (errorData.detail && Array.isArray(errorData.detail)) {
+          errorData.detail.forEach((detail: any) => {
+            // Estrai il nome del campo da loc (es. ["body", "email"] -> "email")
+            const fieldPath = detail.loc || []
+            const fieldName = fieldPath[fieldPath.length - 1] || 'general'
+            const message = detail.msg || detail.message || 'Errore di validazione'
+            setError(fieldName, message)
+          })
+        }
+        // Laravel/Lumen format: { errors: { field: ["..."] } }
+        else if (errorData.errors) {
+          Object.keys(errorData.errors).forEach(field => {
+            setError(field, errorData.errors[field][0])
+          })
+        }
+        // Fallback: usa il messaggio generale
+        else if (errorData.message) {
+          setError('general', errorData.message)
+        }
       } else if (error.response?.status === 429) {
         // Rate limit
         setError('general', 'Troppi tentativi, riprova più tardi')
       } else {
-        // Generic error
-        setError('general', error.message || 'Errore durante la registrazione')
+        // Generic error - supporta formato FastAPI
+        let errorMessage = error.message || 'Errore durante la registrazione'
+        if (error.response?.data) {
+          const errorData = error.response.data
+          if (errorData.detail && Array.isArray(errorData.detail) && errorData.detail.length > 0) {
+            errorMessage = errorData.detail[0].msg || errorData.detail[0].message || errorMessage
+          } else if (errorData.message) {
+            errorMessage = errorData.message
+          }
+        }
+        setError('general', errorMessage)
       }
     } finally {
       setIsSubmitting(false)
@@ -199,7 +233,7 @@ export default function RegisterPage() {
   const testApiConnection = async () => {
     const startTime = Date.now()
     try {
-      const response = await authApi.get('/api/health')
+      const response = await authApi.get('/health/live')
       const duration = Date.now() - startTime
       
       const result = {

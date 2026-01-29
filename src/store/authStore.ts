@@ -22,6 +22,25 @@ import type {
 import { authApi } from '@/lib/authApi'
 import { config } from '@/lib/config'
 
+/** Default preferences when backend does not return them (backward compat) */
+const DEFAULT_PREFERENCES: NonNullable<User['preferences']> = {
+  theme: 'system',
+  language: 'en',
+  is_onboarding_completed: false,
+}
+
+/** Normalize user so preferences always has shape (backend may omit or use snake_case) */
+function normalizeUser(user: User | null): User | null {
+  if (!user) return null
+  const prefs = user.preferences
+  const preferences = {
+    theme: (prefs?.theme ?? DEFAULT_PREFERENCES.theme) as 'light' | 'dark' | 'system',
+    language: prefs?.language ?? DEFAULT_PREFERENCES.language,
+    is_onboarding_completed: prefs?.is_onboarding_completed ?? DEFAULT_PREFERENCES.is_onboarding_completed,
+  }
+  return { ...user, preferences }
+}
+
 interface AuthState {
   // State
   user: User | null
@@ -46,6 +65,7 @@ interface AuthState {
   verifyEmailCode: (data: EmailVerificationVerify) => Promise<void>
   logout: () => Promise<void>
   setUser: (user: User) => void
+  updateUserPreferences: (preferences: Partial<NonNullable<User['preferences']>>) => void
   setToken: (accessToken: string, refreshToken?: string) => void
   clearError: () => void
   initializeAuth: () => Promise<void>
@@ -83,14 +103,17 @@ export const useAuthStore = create<AuthState>()(
             const user = response.data?.user || response.user || (userStr ? JSON.parse(userStr) : null)
             
             if (user) {
-              // Salva i dati utente aggiornati
-              localStorage.setItem(config.auth.userKey, JSON.stringify(user))
-              
-              set({
-                user,
-                accessToken: accessToken,
-                isAuthenticated: true,
-              })
+              const normalized = normalizeUser(user)
+              if (normalized) {
+                localStorage.setItem(config.auth.userKey, JSON.stringify(normalized))
+                set({
+                  user: normalized,
+                  accessToken: accessToken,
+                  isAuthenticated: true,
+                })
+              } else {
+                await get().logout()
+              }
             } else {
               // Se non c'è user nella risposta, fai logout
               await get().logout()
@@ -150,30 +173,21 @@ export const useAuthStore = create<AuthState>()(
             authApi.setToken(accessToken, refreshToken)
             
             // If user is not in response, fetch it from /me endpoint
-            if (!user) {
+            let userToSet = user
+            if (!userToSet) {
               try {
                 const meResponse = await authApi.get('/api/auth/me') as any
-                const userData = meResponse.data?.user || meResponse.user || meResponse.data
-                if (userData) {
-                  localStorage.setItem(config.auth.userKey, JSON.stringify(userData))
-                  set({
-                    user: userData,
-                    accessToken: accessToken,
-                    isAuthenticated: true,
-                    isLoading: false,
-                    error: null,
-                  })
-                  return { mfaRequired: false }
-                }
+                userToSet = meResponse.data?.user || meResponse.user || meResponse.data
               } catch (meError) {
                 // If /me fails, still set authenticated but without user
               }
-            } else {
-              localStorage.setItem(config.auth.userKey, JSON.stringify(user))
             }
-            
+            const normalized = userToSet ? normalizeUser(userToSet) : null
+            if (normalized) {
+              localStorage.setItem(config.auth.userKey, JSON.stringify(normalized))
+            }
             set({
-              user: user || null,
+              user: normalized,
               accessToken: accessToken,
               isAuthenticated: true,
               isLoading: false,
@@ -184,7 +198,24 @@ export const useAuthStore = create<AuthState>()(
             throw new Error(response.message || responseData.message || 'Login fallito')
           }
         } catch (error: any) {
-          const errorMessage = error.response?.data?.message || error.message || 'Errore durante il login'
+          // Supporta sia formato Laravel/Lumen che FastAPI
+          let errorMessage = 'Errore durante il login'
+          
+          if (error.response?.data) {
+            const errorData = error.response.data
+            
+            // FastAPI format: { detail: [{ loc: [...], msg: "...", type: "..." }] }
+            if (errorData.detail && Array.isArray(errorData.detail) && errorData.detail.length > 0) {
+              const firstDetail = errorData.detail[0]
+              errorMessage = firstDetail.msg || firstDetail.message || errorMessage
+            }
+            // Laravel/Lumen format: { message: "..." }
+            else if (errorData.message) {
+              errorMessage = errorData.message
+            }
+          } else if (error.message) {
+            errorMessage = error.message
+          }
           
           set({
             isLoading: false,
@@ -214,33 +245,21 @@ export const useAuthStore = create<AuthState>()(
             // Salva entrambi i token e user
             authApi.setToken(accessToken, refreshToken)
             
-            // If user is not in response, fetch it from /me endpoint
-            if (!user) {
+            let userToSet = user
+            if (!userToSet) {
               try {
                 const meResponse = await authApi.get('/api/auth/me') as any
-                const userData = meResponse.data?.user || meResponse.user || meResponse.data
-                if (userData) {
-                  localStorage.setItem(config.auth.userKey, JSON.stringify(userData))
-                  set({
-                    user: userData,
-                    accessToken: accessToken,
-                    isAuthenticated: true,
-                    mfaRequired: false,
-                    preAuthToken: null,
-                    isLoading: false,
-                    error: null,
-                  })
-                  return
-                }
+                userToSet = meResponse.data?.user || meResponse.user || meResponse.data
               } catch (meError) {
                 // If /me fails, still set authenticated but without user
               }
-            } else {
-              localStorage.setItem(config.auth.userKey, JSON.stringify(user))
             }
-            
+            const normalized = userToSet ? normalizeUser(userToSet) : null
+            if (normalized) {
+              localStorage.setItem(config.auth.userKey, JSON.stringify(normalized))
+            }
             set({
-              user: user || null,
+              user: normalized,
               accessToken: accessToken,
               isAuthenticated: true,
               mfaRequired: false,
@@ -252,7 +271,24 @@ export const useAuthStore = create<AuthState>()(
             throw new Error(response.message || responseData.message || 'Verifica MFA fallita')
           }
         } catch (error: any) {
-          const errorMessage = error.response?.data?.message || error.message || 'Errore durante la verifica MFA'
+          // Supporta sia formato Laravel/Lumen che FastAPI
+          let errorMessage = 'Errore durante la verifica MFA'
+          
+          if (error.response?.data) {
+            const errorData = error.response.data
+            
+            // FastAPI format: { detail: [{ loc: [...], msg: "...", type: "..." }] }
+            if (errorData.detail && Array.isArray(errorData.detail) && errorData.detail.length > 0) {
+              const firstDetail = errorData.detail[0]
+              errorMessage = firstDetail.msg || firstDetail.message || errorMessage
+            }
+            // Laravel/Lumen format: { message: "..." }
+            else if (errorData.message) {
+              errorMessage = errorData.message
+            }
+          } else if (error.message) {
+            errorMessage = error.message
+          }
           
           set({
             isLoading: false,
@@ -275,6 +311,8 @@ export const useAuthStore = create<AuthState>()(
             website_url: '' // Honeypot field - must be empty string
           }
           
+          // La chiamata API. Se fallisce (es. 400, 500), Axios lancerà un errore e andremo nel catch.
+          // Se arriviamo alla riga successiva, è un successo (200 o 201).
           const response = await authApi.post('/api/auth/register', payload) as any
           
           // Estrae i dati dalla risposta (supporta sia response.data.data che response.data)
@@ -283,40 +321,65 @@ export const useAuthStore = create<AuthState>()(
           const refreshToken = responseData.refresh_token || responseData.data?.refresh_token
           const user = responseData.user || responseData.data?.user
           
-          if (response.success) {
-            // Se il backend restituisce i token dopo la registrazione, salviamoli
-            // (login automatico dopo registrazione)
-            if (accessToken && refreshToken && user) {
+          // --- FIX: Rimuoviamo il controllo rigido su 'response.success' ---
+          // Se siamo qui, la richiesta HTTP è andata a buon fine.
+          
+          if (accessToken && refreshToken && user) {
+            const normalized = normalizeUser(user)
+            if (normalized) {
               authApi.setToken(accessToken, refreshToken)
-              localStorage.setItem(config.auth.userKey, JSON.stringify(user))
-              
+              localStorage.setItem(config.auth.userKey, JSON.stringify(normalized))
               set({
-                user,
+                user: normalized,
                 accessToken: accessToken,
                 isAuthenticated: true,
                 isLoading: false,
                 error: null,
               })
             } else {
-              // Se non ci sono token, la registrazione è andata a buon fine
-              // ma l'utente deve verificare l'email prima di loggarsi
-              set({
-                isLoading: false,
-                error: null,
-              })
+              set({ isLoading: false, error: null })
             }
           } else {
-            throw new Error(response.message || responseData.message || 'Registrazione fallita')
+            // Registrazione avvenuta ma senza auto-login (verifica email richiesta)
+            set({
+              isLoading: false,
+              error: null,
+            })
           }
+          
         } catch (error: any) {
+          console.error("Registration Error Detail:", error) // Debug log
+          
           // Estrai messaggio errore più dettagliato
+          // Supporta sia formato Laravel/Lumen che FastAPI
           let errorMessage = 'Errore durante la registrazione'
+          
           if (error.response?.data) {
-            if (error.response.data.message) {
-              errorMessage = error.response.data.message
-            } else if (error.response.data.errors) {
+            const errorData = error.response.data
+            
+            // FastAPI format: { detail: [{ loc: [...], msg: "...", type: "..." }] }
+            if (errorData.detail && Array.isArray(errorData.detail) && errorData.detail.length > 0) {
+              // Prendi il primo errore dalla lista detail
+              const firstDetail = errorData.detail[0]
+              errorMessage = firstDetail.msg || firstDetail.message || errorMessage
+              
+              // Se ci sono più errori, possiamo concatenarli (opzionale)
+              if (errorData.detail.length > 1) {
+                const allMessages = errorData.detail
+                  .map((d: any) => d.msg || d.message)
+                  .filter((m: any) => m)
+                  .join(', ')
+                if (allMessages) {
+                  errorMessage = allMessages
+                }
+              }
+            }
+            // Laravel/Lumen format: { message: "...", errors: { field: ["..."] } }
+            else if (errorData.message) {
+              errorMessage = errorData.message
+            } else if (errorData.errors) {
               // Se ci sono errori di validazione, mostra il primo
-              const firstError = Object.values(error.response.data.errors)[0]
+              const firstError = Object.values(errorData.errors)[0]
               if (Array.isArray(firstError) && firstError.length > 0) {
                 errorMessage = firstError[0] as string
               }
@@ -602,10 +665,32 @@ export const useAuthStore = create<AuthState>()(
         })
       },
 
-      // Set user
+      // Set user (normalize preferences)
       setUser: (user: User) => {
-        localStorage.setItem(config.auth.userKey, JSON.stringify(user))
-        set({ user })
+        const normalized = normalizeUser(user)
+        if (normalized) {
+          localStorage.setItem(config.auth.userKey, JSON.stringify(normalized))
+          set({ user: normalized })
+        }
+      },
+
+      // Aggiorna preferenze in memoria senza rifare login (evita loop visivo). Forziamo is_onboarding_completed: true localmente.
+      updateUserPreferences: (prefs) => {
+        set((state) => {
+          if (!state.user) return state
+          const updatedUser = {
+            ...state.user,
+            preferences: {
+              ...(state.user.preferences || {}),
+              ...prefs,
+              is_onboarding_completed: true,
+            },
+          }
+          try {
+            localStorage.setItem(config.auth.userKey, JSON.stringify(updatedUser))
+          } catch (_) {}
+          return { user: updatedUser }
+        })
       },
 
       // Set token

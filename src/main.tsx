@@ -1,30 +1,20 @@
 /**
- * Main Entry Point
- * Entry principale dell'applicazione React
+ * App entry point - mounts React app with Router and providers
  */
 
 import React from 'react'
-import ReactDOM from 'react-dom/client'
-import Router from './app/Router'
-import { LanguageProvider } from './contexts/LanguageContext'
-import { useAuthStore } from './store/authStore'
-import { useActivityStatusStore } from './store/activityStatusStore'
-import './styles/globals.css'
+import { createRoot } from 'react-dom/client'
+import { LanguageProvider } from '@/contexts/LanguageContext'
+import Router from '@/app/Router'
+import '@/styles/globals.css'
 
-// Inizializza autenticazione da localStorage
-// Non attendiamo il risultato per non bloccare il rendering iniziale
-useAuthStore.getState().initializeAuth().catch(() => {
-  // Silently handle initialization errors
-})
+const root = document.getElementById('root')
+if (!root) throw new Error('Root element #root not found')
 
-// Inizializza stato attività da localStorage
-useActivityStatusStore.getState().initializeActivityStatus()
-
-ReactDOM.createRoot(document.getElementById('root')!).render(
+createRoot(root).render(
   <React.StrictMode>
     <LanguageProvider>
       <Router />
     </LanguageProvider>
   </React.StrictMode>
 )
-

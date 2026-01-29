@@ -22,7 +22,7 @@ export default function HealthPage() {
 
     try {
       // Usa authApi per puntare al microservizio Auth su AWS
-      const response = await authApi.get<HealthCheck>('/health')
+      const response = await authApi.get<HealthCheck>('/health/live')
       setResult(response.data || null)
     } catch (err: any) {
       setError(err.message || 'Errore durante il test di connessione')
@@ -101,7 +101,7 @@ export default function HealthPage() {
               <strong>API Base:</strong> {import.meta.env.VITE_API_BASE}
             </li>
             <li>
-              <strong>Endpoint:</strong> GET /api/health
+              <strong>Endpoint:</strong> GET /health/live
             </li>
             <li>
               <strong>Nota:</strong> Assicurati che il backend Laravel sia in esecuzione su{' '}

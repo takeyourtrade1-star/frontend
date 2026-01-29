@@ -147,7 +147,7 @@ export default function LoginPage() {
   const testApiConnection = async () => {
     const startTime = Date.now()
     try {
-      const response = await authApi.get('/api/health')
+      const response = await authApi.get('/health/live')
       const duration = Date.now() - startTime
       
       const result = {
