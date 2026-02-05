@@ -399,11 +399,17 @@ export interface CardHit {
   image: string | null
 }
 
-/** Search hit from Meilisearch (multilingual, server-side). No local JSON. */
+/**
+ * Search hit from Meilisearch: specifica ristampa/prodotto (marketplace).
+ * id = ID univoco della ristampa nel DB (es. "mtg_502"), non Oracle.
+ */
 export interface SearchHit {
   id: string
   name: string
   set_name: string
+  /** Codice set (es. "CMM") per sottotitolo "Set Name (CMM) #123" */
+  set_code?: string
+  collector_number?: string
   game_slug: 'mtg' | 'pk' | 'op'
   image: string | null
 }

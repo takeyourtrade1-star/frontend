@@ -3,14 +3,8 @@
  * Configurazione routing dell'applicazione con React Router DOM
  */
 
-import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import ProtectedRoute from '@/components/ui/ProtectedRoute'
-
-/** Redirect /cards/:game_slug/:id → /card/:id so CardDetailPage (oracle_id) works. */
-function CardDetailPageFromSearch() {
-  const { id } = useParams<{ game_slug: string; id: string }>()
-  return id ? <Navigate to={`/card/${id}`} replace /> : <Navigate to="/" replace />
-}
 
 // Layout
 import MainLayout from './MainLayout'
@@ -34,6 +28,7 @@ import CollectionPage from '@/pages/Collection/CollectionPage'
 import CardsSearchPage from '@/pages/Cards/CardsSearchPage'
 import CardDetailPage from '@/pages/Cards/CardDetailPage'
 import CardPrintingsPage from '@/pages/Cards/CardPrintingsPage'
+import PrintingDetailPage from '@/pages/Cards/PrintingDetailPage'
 import SearchPage from '@/pages/SearchPage'
 import SocialFeedPage from '@/pages/Social/SocialFeedPage'
 import ChatPage from '@/pages/Chat/ChatPage'
@@ -84,10 +79,10 @@ export default function Router() {
           
           {/* Public Search Routes */}
           <Route path="/search" element={<SearchPage />} />
-          {/* Meilisearch Global Search: /cards/:game_slug/:id -> card detail (id = oracle_id) */}
+          {/* Dettaglio ristampa (id = printing id nel DB, nessun redirect) */}
           <Route
             path="/cards/:game_slug/:id"
-            element={<CardDetailPageFromSearch />}
+            element={<PrintingDetailPage />}
           />
           <Route path="/card/:oracle_id" element={<CardDetailPage />} />
           <Route path="/card/:oracle_id/printings" element={<CardPrintingsPage />} />

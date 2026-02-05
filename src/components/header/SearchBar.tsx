@@ -52,6 +52,14 @@ function getImageUrl(image: string | null): string | null {
   return base ? `${base.replace(/\/$/, '')}/${image.replace(/^\//, '')}` : image
 }
 
+/** Sottotitolo: "Set Name (CMM) #410" per distinguere ristampe. */
+function formatSubtitle(hit: SearchHit): string {
+  const parts: string[] = [hit.set_name || '']
+  if (hit.set_code) parts.push(`(${hit.set_code})`)
+  if (hit.collector_number) parts.push(`#${hit.collector_number}`)
+  return parts.filter(Boolean).join(' ')
+}
+
 function SearchHitRow({
   hit,
   onSelect,
@@ -85,13 +93,13 @@ function SearchHitRow({
         )}
       </div>
 
-      {/* Nome (evidenziato) + Set */}
+      {/* Titolo (nome carta) + Sottotitolo (Set + Collector Number) */}
       <div className="flex-1 min-w-0">
         <div className="font-semibold text-gray-900 truncate [&_mark]:font-semibold">
           <Highlight hit={hit} attribute="name" />
         </div>
         <div className="text-xs text-gray-500 truncate mt-0.5">
-          {hit.set_name}
+          {formatSubtitle(hit)}
         </div>
       </div>
 
