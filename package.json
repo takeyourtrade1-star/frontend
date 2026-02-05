@@ -12,6 +12,7 @@
     "clean": "rimraf dist"
   },
   "dependencies": {
+    "@meilisearch/instant-meilisearch": "^0.30.0",
     "axios": "^1.6.5",
     "framer-motion": "^10.18.0",
     "fuse.js": "^7.1.0",
@@ -20,6 +21,7 @@
     "react-country-flag": "^3.1.0",
     "react-dom": "^18.2.0",
     "react-hot-toast": "^2.6.0",
+    "react-instantsearch": "^7.23.0",
     "react-router-dom": "^6.21.1",
     "zustand": "^4.4.7"
   },

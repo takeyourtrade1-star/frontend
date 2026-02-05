@@ -14,6 +14,7 @@ import HeaderMenuButtons from '@/components/header/HeaderMenuButtons'
 import SidebarMenu from '@/components/header/SidebarMenu'
 import LoginSidebar from '@/components/header/LoginSidebar'
 import SearchBar from '@/components/header/SearchBar'
+import GlobalSearch from '@/components/header/GlobalSearch'
 import LanguageSelectorBottomBar from '@/components/header/LanguageSelectorBottomBar'
 
 export default function Header() {
@@ -49,6 +50,11 @@ export default function Header() {
           {/* Logo - Sinistra */}
           <div className="flex-shrink-0">
             <Logo />
+          </div>
+
+          {/* Global Search - Meilisearch (solo desktop, nascosto su mobile) */}
+          <div className="hidden md:flex flex-1 max-w-md mx-4 min-w-0">
+            <GlobalSearch />
           </div>
 
           {/* Zona Centrale - Auth Form o User Menu */}

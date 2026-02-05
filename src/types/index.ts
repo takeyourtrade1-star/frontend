@@ -390,3 +390,11 @@ export interface CardPrintingsResponse {
   error?: string
 }
 
+/** Hit from Meilisearch index "cards" (Global Search) */
+export interface CardHit {
+  id: string
+  name: string
+  set_name: string
+  game_slug: 'mtg' | 'pk' | 'op'
+  image: string | null
+}
