@@ -7,6 +7,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Search, Loader2 } from 'lucide-react'
+import GameSelector from '@/components/header/GameSelector'
+import type { GameSlug } from '@/components/header/GameSelector'
 import {
   InstantSearch,
   Configure,
@@ -131,7 +133,10 @@ function SearchBarInner() {
     focused && query.trim().length > MIN_QUERY_LENGTH
 
   const handleSelect = (hit: Hit<SearchHit>) => {
-    navigate(`/cards/${hit.game_slug}/${hit.id}`)
+    // Meilisearch ID è "mtg_123" → backend si aspetta "123" (id pulito)
+    const rawId = hit.id
+    const cleanId = rawId.includes('_') ? rawId.split('_')[1] : rawId
+    navigate(`/cards/${hit.game_slug}/${cleanId}`)
     refine('')
     setFocused(false)
   }
@@ -213,36 +218,45 @@ function SearchBarInner() {
 }
 
 export default function SearchBar() {
+  const [selectedGame, setSelectedGame] = useState<GameSlug | null>(null)
+
+  const barClass =
+    'w-full bg-white border-b border-gray-100 flex justify-center items-center py-2 sticky z-[999]'
+  const barStyle = {
+    top: '70px',
+    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
+    fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif',
+  }
+
   if (!searchClient) {
     return (
-      <div
-        className="w-full bg-white border-b border-gray-100 flex justify-center items-center py-2 sticky z-[999]"
-        style={{
-          top: '70px',
-          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
-        }}
-      >
-        <div className="w-full max-w-[800px] h-10 flex items-center px-4 text-sm text-gray-400 border border-gray-200 rounded-lg bg-gray-50">
-          Cerca carta (configura VITE_MEILISEARCH_URL e VITE_MEILISEARCH_API_KEY)
+      <div className={barClass} style={barStyle}>
+        <div className="w-full px-4 md:px-6 md:w-[90%] md:max-w-[1100px] flex items-center gap-3">
+          <GameSelector value={selectedGame} onChange={setSelectedGame} />
+          <div className="flex-1 max-w-[800px] h-10 flex items-center px-4 text-sm text-gray-400 border border-gray-200 rounded-lg bg-gray-50">
+            Cerca carta (configura VITE_MEILISEARCH_URL e VITE_MEILISEARCH_API_KEY)
+          </div>
         </div>
       </div>
     )
   }
 
   return (
-    <div
-      className="w-full bg-white border-b border-gray-100 flex justify-center items-center py-2 sticky z-[999]"
-      style={{
-        top: '70px',
-        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
-        fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif',
-      }}
-    >
-      <div className="w-full px-4 md:px-6 md:w-[90%] md:max-w-[1100px] flex items-center justify-center">
-        <InstantSearch searchClient={searchClient} indexName={MEILISEARCH_INDEX}>
-          <Configure hitsPerPage={HITS_MAX} />
-          <SearchBarInner />
-        </InstantSearch>
+    <div className={barClass} style={barStyle}>
+      <div className="w-full px-4 md:px-6 md:w-[90%] md:max-w-[1100px] flex items-center gap-3">
+        <GameSelector value={selectedGame} onChange={setSelectedGame} />
+        {!selectedGame ? (
+          <div className="flex-1 max-w-[800px] h-10 flex items-center px-4 text-sm text-gray-400 border border-gray-200 rounded-lg bg-gray-50">
+            Seleziona un gioco per cercare
+          </div>
+        ) : (
+          <div className="flex-1 max-w-[800px] min-w-0">
+            <InstantSearch searchClient={searchClient} indexName={MEILISEARCH_INDEX}>
+              <Configure hitsPerPage={HITS_MAX} filter={`game_slug = '${selectedGame}'`} />
+              <SearchBarInner />
+            </InstantSearch>
+          </div>
+        )}
       </div>
     </div>
   )

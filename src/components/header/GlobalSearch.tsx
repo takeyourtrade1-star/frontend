@@ -16,6 +16,7 @@ import {
 import { instantMeiliSearch } from '@meilisearch/instant-meilisearch'
 import type { Hit } from 'instantsearch.js'
 import type { SearchHit } from '@/types'
+import type { GameSlug } from '@/components/header/GameSelector'
 
 const MEILISEARCH_INDEX = 'cards'
 const HITS_PER_PAGE = 8
@@ -63,7 +64,10 @@ function GlobalSearchHitRow({ hit }: { hit: Hit<SearchHit> }) {
   const showPlaceholder = !imgUrl || imgError
 
   const handleClick = () => {
-    navigate(`/cards/${hit.game_slug}/${hit.id}`)
+    // Meilisearch ID è "mtg_123" → backend si aspetta "123" (id pulito)
+    const rawId = hit.id
+    const cleanId = rawId.includes('_') ? rawId.split('_')[1] : rawId
+    navigate(`/cards/${hit.game_slug}/${cleanId}`)
   }
 
   const badgeColor = GAME_BADGE_CLASS[hit.game_slug] ?? 'bg-gray-400'
@@ -177,19 +181,41 @@ function GlobalSearchInner() {
   )
 }
 
-export default function GlobalSearch() {
+interface GlobalSearchProps {
+  /** Gioco selezionato: la ricerca è abilitata solo dopo aver scelto un gioco. */
+  gameSlug: GameSlug | null
+  className?: string
+}
+
+export default function GlobalSearch({ gameSlug, className = '' }: GlobalSearchProps) {
+  const placeholderClass =
+    'w-full h-9 flex items-center px-3 text-sm text-gray-400 border border-gray-200 rounded-lg bg-gray-50'
+
   if (!searchClient) {
     return (
-      <div className="w-full max-w-md h-9 flex items-center px-3 text-sm text-gray-400 border border-gray-200 rounded-lg bg-gray-50">
+      <div className={`${placeholderClass} ${className}`.trim()}>
         Cerca carta (configura VITE_MEILISEARCH_*)
       </div>
     )
   }
 
+  if (!gameSlug) {
+    return (
+      <div className={`${placeholderClass} ${className}`.trim()} aria-live="polite">
+        Seleziona un gioco per cercare
+      </div>
+    )
+  }
+
+  // Filtro Meilisearch: solo carte del gioco selezionato
+  const filter = `game_slug = '${gameSlug}'`
+
   return (
-    <InstantSearch searchClient={searchClient} indexName={MEILISEARCH_INDEX}>
-      <Configure hitsPerPage={HITS_PER_PAGE} />
-      <GlobalSearchInner />
-    </InstantSearch>
+    <div className={className}>
+      <InstantSearch searchClient={searchClient} indexName={MEILISEARCH_INDEX}>
+        <Configure hitsPerPage={HITS_PER_PAGE} filter={filter} />
+        <GlobalSearchInner />
+      </InstantSearch>
+    </div>
   )
 }

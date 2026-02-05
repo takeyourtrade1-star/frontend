@@ -1,9 +1,9 @@
 /**
  * PrintingDetailPage
- * Dettaglio della singola ristampa/prodotto (marketplace).
- * URL: /cards/:game_slug/:id — id = ID univoco della ristampa nel DB (es. mtg_502).
- * La pagina usa questo id per caricare i prezzi di mercato di quella specifica versione.
- * Nessun redirect: l'ID nell'URL resta quello della stampa.
+ * URL canonico: /cards/:game_slug/:id (nessun redirect).
+ * - game_slug: identifica il gioco (mtg | pk | op) → quale API chiamare.
+ * - id: ID numerico della ristampa nel DB (es. 500), già pulito (senza prefisso mtg_).
+ * La pagina usa game_slug + id per caricare dettaglio e prezzi di mercato di quella ristampa.
  */
 
 import { useParams, Link } from 'react-router-dom'
@@ -21,9 +21,8 @@ export default function PrintingDetailPage() {
     )
   }
 
-  // TODO: quando il backend espone GET /api/cards/:game_slug/:id (o GET /api/printings/:id),
-  // usare l'id per caricare dettaglio e prezzi di mercato di questa ristampa.
-  // Per ora mostriamo la pagina con l'id corretto nell'URL (nessun redirect).
+  // Logica per gioco: game_slug === 'mtg' → API Magic; 'op' → API One Piece; 'pk' → API Pokémon.
+  // TODO: GET /api/cards/:game_slug/:id (o GET /api/printings/:id) con id numerico.
 
   return (
     <div className="min-h-screen bg-gray-50">

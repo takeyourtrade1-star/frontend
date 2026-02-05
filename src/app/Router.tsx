@@ -79,7 +79,7 @@ export default function Router() {
           
           {/* Public Search Routes */}
           <Route path="/search" element={<SearchPage />} />
-          {/* Dettaglio ristampa (id = printing id nel DB, nessun redirect) */}
+          {/* URL canonico: dettaglio ristampa per gioco (nessun redirect, id numerico pulito) */}
           <Route
             path="/cards/:game_slug/:id"
             element={<PrintingDetailPage />}

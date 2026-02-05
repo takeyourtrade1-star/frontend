@@ -15,14 +15,17 @@ import SidebarMenu from '@/components/header/SidebarMenu'
 import LoginSidebar from '@/components/header/LoginSidebar'
 import SearchBar from '@/components/header/SearchBar'
 import GlobalSearch from '@/components/header/GlobalSearch'
+import GameSelector from '@/components/header/GameSelector'
 import LanguageSelectorBottomBar from '@/components/header/LanguageSelectorBottomBar'
+import type { GameSlug } from '@/components/header/GameSelector'
 
 export default function Header() {
   const navigate = useNavigate()
   const { isAuthenticated, logout } = useAuthStore()
-  
+
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [isLoginSidebarOpen, setIsLoginSidebarOpen] = useState(false)
+  const [selectedGame, setSelectedGame] = useState<GameSlug | null>(null)
 
   const handleLogout = async () => {
     await logout()
@@ -52,9 +55,13 @@ export default function Header() {
             <Logo />
           </div>
 
-          {/* Global Search - Meilisearch (solo desktop, nascosto su mobile) */}
-          <div className="hidden md:flex flex-1 max-w-md mx-4 min-w-0">
-            <GlobalSearch />
+          {/* Selezione gioco (prima) + Global Search (solo desktop) */}
+          <div className="hidden md:flex flex-1 items-center gap-3 mx-4 min-w-0 max-w-2xl">
+            <GameSelector
+              value={selectedGame}
+              onChange={setSelectedGame}
+            />
+            <GlobalSearch gameSlug={selectedGame} className="flex-1 min-w-0" />
           </div>
 
           {/* Zona Centrale - Auth Form o User Menu */}
