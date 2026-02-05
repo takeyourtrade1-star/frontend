@@ -398,3 +398,12 @@ export interface CardHit {
   game_slug: 'mtg' | 'pk' | 'op'
   image: string | null
 }
+
+/** Search hit from Meilisearch (multilingual, server-side). No local JSON. */
+export interface SearchHit {
+  id: string
+  name: string
+  set_name: string
+  game_slug: 'mtg' | 'pk' | 'op'
+  image: string | null
+}

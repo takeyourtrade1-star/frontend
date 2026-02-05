@@ -3,8 +3,14 @@
  * Configurazione routing dell'applicazione con React Router DOM
  */
 
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom'
 import ProtectedRoute from '@/components/ui/ProtectedRoute'
+
+/** Redirect /cards/:game_slug/:id → /card/:id so CardDetailPage (oracle_id) works. */
+function CardDetailPageFromSearch() {
+  const { id } = useParams<{ game_slug: string; id: string }>()
+  return id ? <Navigate to={`/card/${id}`} replace /> : <Navigate to="/" replace />
+}
 
 // Layout
 import MainLayout from './MainLayout'
@@ -78,6 +84,11 @@ export default function Router() {
           
           {/* Public Search Routes */}
           <Route path="/search" element={<SearchPage />} />
+          {/* Meilisearch Global Search: /cards/:game_slug/:id -> card detail (id = oracle_id) */}
+          <Route
+            path="/cards/:game_slug/:id"
+            element={<CardDetailPageFromSearch />}
+          />
           <Route path="/card/:oracle_id" element={<CardDetailPage />} />
           <Route path="/card/:oracle_id/printings" element={<CardPrintingsPage />} />
           

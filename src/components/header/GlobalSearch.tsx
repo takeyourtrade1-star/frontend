@@ -15,10 +15,10 @@ import {
 } from 'react-instantsearch'
 import { instantMeiliSearch } from '@meilisearch/instant-meilisearch'
 import type { Hit } from 'instantsearch.js'
-import type { CardHit } from '@/types'
+import type { SearchHit } from '@/types'
 
 const MEILISEARCH_INDEX = 'cards'
-const HITS_PER_PAGE = 10
+const HITS_PER_PAGE = 8
 
 const host = import.meta.env.VITE_MEILISEARCH_URL
 const apiKey = import.meta.env.VITE_MEILISEARCH_API_KEY
@@ -35,8 +35,8 @@ const searchClient = host && apiKey
     }).searchClient
   : null
 
-const GAME_BADGE_COLORS: Record<CardHit['game_slug'], string> = {
-  mtg: 'bg-blue-500',
+const GAME_BADGE_CLASS: Record<SearchHit['game_slug'], string> = {
+  mtg: 'bg-violet-500',
   pk: 'bg-amber-400',
   op: 'bg-red-500',
 }
@@ -49,17 +49,17 @@ function getImageUrl(image: string | null): string | null {
   return base ? `${base.replace(/\/$/, '')}/${image.replace(/^\//, '')}` : image
 }
 
-function CardHitRow({ hit }: { hit: Hit<CardHit> }) {
+function GlobalSearchHitRow({ hit }: { hit: Hit<SearchHit> }) {
   const navigate = useNavigate()
   const [imgError, setImgError] = useState(false)
   const imgUrl = getImageUrl(hit.image)
   const showPlaceholder = !imgUrl || imgError
 
   const handleClick = () => {
-    navigate(`/card/${hit.id}`)
+    navigate(`/cards/${hit.game_slug}/${hit.id}`)
   }
 
-  const badgeColor = GAME_BADGE_COLORS[hit.game_slug] ?? 'bg-gray-400'
+  const badgeColor = GAME_BADGE_CLASS[hit.game_slug] ?? 'bg-gray-400'
 
   return (
     <button
@@ -104,7 +104,7 @@ function CardHitRow({ hit }: { hit: Hit<CardHit> }) {
 
 function GlobalSearchInner() {
   const { query, refine, isSearchStalled } = useSearchBox()
-  const { hits } = useHits<CardHit>()
+  const { hits } = useHits<SearchHit>()
   const [focused, setFocused] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -156,11 +156,11 @@ function GlobalSearchInner() {
               </div>
             ) : displayHits.length === 0 ? (
               <div className="px-3 py-4 text-sm text-gray-500 text-center">
-                Nessun risultato trovato
+                Nessuna carta trovata
               </div>
             ) : (
               displayHits.map((hit) => (
-                <CardHitRow key={hit.id} hit={hit} />
+                <GlobalSearchHitRow key={hit.id} hit={hit} />
               ))
             )}
           </div>
